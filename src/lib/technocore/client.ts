@@ -5,7 +5,7 @@
  */
 import { AbortError, NetworkError, RateLimitError } from './errors'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'https://technocore.chat'
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'https://technocore.chat'
 
 const sleep = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms))
@@ -75,6 +75,12 @@ export async function longPollRoom(
   signal: AbortSignal
 ): Promise<string> {
   const url = `${API_BASE}/r/${encodeURIComponent(name)}?since=${since}&wait=10`
+  return request(url, signal)
+}
+
+/** `GET /r/events?since=<n>&wait=10` — long-poll new room creation. */
+export async function fetchEvents(since: number, signal?: AbortSignal): Promise<string> {
+  const url = `${API_BASE}/r/events?since=${since}&wait=10`
   return request(url, signal)
 }
 

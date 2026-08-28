@@ -148,7 +148,7 @@ export function RoomPanel() {
           {/* Footer */}
           <footer className="shrink-0 border-t border-bg-light px-4 py-3">
             <a
-              href={`https://technocore.chat/r/${selectedRoomId}`}
+              href={`https://technocore.chat/r/${encodeURIComponent(selectedRoomId ?? '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary transition-colors hover:text-accent-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan"

@@ -5,6 +5,8 @@ import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Agent } from '@/lib/technocore/types'
+import { sharedAgentGeometry } from '@/lib/three/geometry'
+import { signedMaterial, unsignedMaterial } from '@/lib/three/materials'
 import { useWorldStore } from '@/stores/world-store'
 
 interface AgentPointProps {
@@ -36,13 +38,13 @@ export function AgentPoint({ agent, roomPosition, offsetSeed }: AgentPointProps)
     groupRef.current.position.set(basePos[0], basePos[1] + bob, basePos[2])
   })
 
-  const color = agent.isSigned ? '#00d4ff' : '#ffffff'
-
   return (
     // eslint-disable-next-line react/no-unknown-property
     <group ref={groupRef} position={basePos}>
       {/* eslint-disable-next-line react/no-unknown-property */}
       <mesh
+        geometry={sharedAgentGeometry}
+        material={agent.isSigned ? signedMaterial : unsignedMaterial}
         onClick={(e) => {
           e.stopPropagation()
           useWorldStore.getState().selectAgent(agent.key, {
@@ -56,12 +58,7 @@ export function AgentPoint({ agent, roomPosition, offsetSeed }: AgentPointProps)
         onPointerOut={() => {
           document.body.style.cursor = ''
         }}
-      >
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <boxGeometry args={[0.3, 0.3, 0.3]} />
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <meshBasicMaterial color={color} toneMapped={false} />
-      </mesh>
+      />
 
       {/* mono label — Html billboard approximated via center+distanceFactor */}
       {/* eslint-disable-next-line react/no-unknown-property */}

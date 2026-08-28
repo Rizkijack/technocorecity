@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { parseEventLine } from '@/lib/technocore/adapter'
+import { fetchEvents } from '@/lib/technocore/client'
 import type { EventLine } from '@/lib/technocore/types'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'https://technocore.chat'
 const POLL_INTERVAL_MS = 1000
 const ERROR_BACKOFF_MS = 2000
 const EVENT_CAP = 200
@@ -19,17 +19,6 @@ function toEvents(raw: unknown): EventLine[] {
   if (Array.isArray(raw)) return raw as EventLine[]
   if (typeof raw === 'string') return parseEventLine(raw)
   return parseEventLine(String(raw ?? ''))
-}
-
-async function fetchEvents(since: number, signal: AbortSignal): Promise<string> {
-  const url = `${API_BASE}/r/events?since=${since}&wait=10`
-  const res = await fetch(url, {
-    signal,
-    cache: 'no-store',
-    headers: { accept: 'text/plain' },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-  return res.text()
 }
 
 /**

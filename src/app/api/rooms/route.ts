@@ -16,11 +16,19 @@ export async function GET() {
     headers: { Accept: 'text/plain' },
   })
   const body = await res.text()
+  // Forward status + Retry-After for 429 so client can handle rate limit correctly.
+  const headers: Record<string, string> = {
+    'Content-Type': res.headers.get('Content-Type') ?? 'text/plain; charset=utf-8',
+    'Cache-Control': res.headers.get('Cache-Control') ?? 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
+  }
+  const retryAfter = res.headers.get('retry-after')
+  if (retryAfter) headers['retry-after'] = retryAfter
+  if (!res.ok && res.status !== 429) {
+    // For non-429 errors, surface upstream status but keep body for debugging.
+    return new NextResponse(body, { status: res.status, headers })
+  }
   return new NextResponse(body, {
     status: res.status,
-    headers: {
-      'Content-Type': res.headers.get('Content-Type') ?? 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
-    },
+    headers,
   })
 }

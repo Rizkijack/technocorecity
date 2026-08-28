@@ -41,16 +41,20 @@ export default function Page() {
       .slice(0, TOP_ROOMS_FOR_AGENTS)
     let cancelled = false
 
+    const controller = new AbortController()
     void (async () => {
       const messagesByRoom = new Map<string, Message[]>()
-      for (const r of top) {
-        if (cancelled) return
-        try {
-          const raw = await fetchRoom(r.name)
+      const results = await Promise.allSettled(
+        top.map(async (r) => {
+          if (cancelled || controller.signal.aborted) return
+          const raw = await fetchRoom(r.name, undefined, controller.signal)
           const text = typeof raw === 'string' ? raw : String(raw ?? '')
-          messagesByRoom.set(r.name, parseRoomMessages(text))
-        } catch {
-          // ignore individual room failure, continue
+          return { name: r.name, msgs: parseRoomMessages(text) } as const
+        }),
+      )
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value) {
+          messagesByRoom.set(res.value.name, res.value.msgs)
         }
       }
       if (cancelled) return
@@ -65,6 +69,7 @@ export default function Page() {
 
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [rooms, mergeAgents])
 
