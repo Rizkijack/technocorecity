@@ -6,6 +6,24 @@ import { Html } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Room } from '@/lib/technocore/types'
 import { useWorldStore } from '@/stores/world-store'
+import { createBuildingGeometry } from '@/lib/three/geometry'
+
+// Cache building box geometries by dimension tuple. With 50+ rooms and only
+// a handful of width/height/depth combos, this keeps GPU buffers bounded.
+const geometryCache = new Map<string, THREE.BoxGeometry>()
+function sharedBuildingGeometry(
+  w: number,
+  h: number,
+  d: number,
+): THREE.BoxGeometry {
+  const key = `${w.toFixed(2)}|${h.toFixed(2)}|${d.toFixed(2)}`
+  let geo = geometryCache.get(key)
+  if (!geo) {
+    geo = createBuildingGeometry(w, h, d)
+    geometryCache.set(key, geo)
+  }
+  return geo
+}
 
 interface BuildingProps {
   room: Room
@@ -39,10 +57,18 @@ export function Building({ room, position, index: _index }: BuildingProps) {
 
   const meshRef = useRef<THREE.Mesh>(null)
 
+  // Cap rotation at one full turn (2π) so selected buildings don't spin
+  // indefinitely when the panel stays open. Resets each time selection toggles
+  // (deselecting flips isSelected false → guards on the next frame, and the
+  // mesh's rotation.y is reset to 0 on the next click via selectRoom toggling).
   useFrame((_, delta) => {
-    if (!meshRef.current) return
-    if (isSelected) {
-      meshRef.current.rotation.y += 0.2 * delta
+    if (!meshRef.current || !isSelected) return
+    const TWO_PI = Math.PI * 2
+    if (meshRef.current.rotation.y < TWO_PI) {
+      meshRef.current.rotation.y = Math.min(
+        TWO_PI,
+        meshRef.current.rotation.y + 0.2 * delta,
+      )
     }
   })
 
@@ -65,8 +91,10 @@ export function Building({ room, position, index: _index }: BuildingProps) {
           document.body.style.cursor = ''
         }}
       >
-        {/* eslint-disable-next-line react/no-unknown-property */}
-        <boxGeometry args={[width, height, depth]} />
+        <primitive
+          object={sharedBuildingGeometry(width, height, depth)}
+          attach="geometry"
+        />
         {/* eslint-disable-next-line react/no-unknown-property */}
         <meshStandardMaterial
           color="#1c2347"

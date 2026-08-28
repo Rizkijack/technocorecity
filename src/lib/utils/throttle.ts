@@ -71,6 +71,9 @@ export function createVisibilityGate(): VisibilityGate {
 /**
  * Wrap `fn` so it is throttled and defers while the tab is hidden.
  * While hidden, the last call is queued and flushed when visible.
+ *
+ * Visibility listener is registered exactly once per throttle instance
+ * (was unbounded before — each call while hidden added a new listener).
  */
 export function visibilityThrottle<T extends (...args: never[]) => void>(
   fn: T,
@@ -79,6 +82,15 @@ export function visibilityThrottle<T extends (...args: never[]) => void>(
   let last = 0
   let timer: ReturnType<typeof setTimeout> | null = null
   let pendingArgs: Parameters<T> | null = null
+  let visibilityListener: (() => void) | null = null
+
+  const flushPending = (): void => {
+    if (pendingArgs) {
+      const a = pendingArgs
+      pendingArgs = null
+      invoke(a)
+    }
+  }
 
   const invoke = (args: Parameters<T>): void => {
     last = Date.now()
@@ -91,15 +103,19 @@ export function visibilityThrottle<T extends (...args: never[]) => void>(
       document.visibilityState === 'hidden'
     ) {
       pendingArgs = args
-      const onVisible = (): void => {
-        if (document.visibilityState !== 'hidden' && pendingArgs) {
-          const a = pendingArgs
-          pendingArgs = null
-          invoke(a)
-          document.removeEventListener('visibilitychange', onVisible)
+      if (!visibilityListener) {
+        const handler = (): void => {
+          if (document.visibilityState !== 'hidden') {
+            flushPending()
+          }
+          if (visibilityListener) {
+            document.removeEventListener('visibilitychange', visibilityListener)
+            visibilityListener = null
+          }
         }
+        visibilityListener = handler
+        document.addEventListener('visibilitychange', handler)
       }
-      document.addEventListener('visibilitychange', onVisible, { once: true })
       return
     }
 
@@ -120,11 +136,7 @@ export function visibilityThrottle<T extends (...args: never[]) => void>(
     if (timer === null) {
       timer = setTimeout(() => {
         timer = null
-        if (pendingArgs) {
-          const a = pendingArgs
-          pendingArgs = null
-          invoke(a)
-        }
+        flushPending()
       }, delayMs - elapsed)
     }
   }

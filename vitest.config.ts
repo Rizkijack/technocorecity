@@ -7,6 +7,15 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
     globals: false,
+    environmentMatchGlobs: [
+      ['src/hooks/**', 'jsdom'],
+      ['**/throttle*', 'jsdom'],
+    ],
+    coverage: {
+      provider: 'v8',
+      include: ['src/lib/**', 'src/stores/**', 'src/hooks/**'],
+      reporter: ['text', 'html'],
+    },
   },
   resolve: {
     alias: {
