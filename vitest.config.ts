@@ -7,10 +7,17 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
     globals: false,
+    setupFiles: ['./src/test/setup.ts'],
     environmentMatchGlobs: [
       ['src/hooks/**', 'jsdom'],
       ['**/throttle*', 'jsdom'],
     ],
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     coverage: {
       provider: 'v8',
       include: ['src/lib/**', 'src/stores/**', 'src/hooks/**'],

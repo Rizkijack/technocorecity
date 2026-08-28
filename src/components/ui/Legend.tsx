@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils/cn';
 import { useUiStore } from '@/stores/ui-store';
@@ -8,6 +9,13 @@ import { IconChevronRight } from './icons';
 export function Legend() {
   const collapsed = useUiStore((s) => s.legendCollapsed);
   const toggleLegend = useUiStore((s) => s.toggleLegend);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth < 768 && !useUiStore.getState().legendCollapsed) {
+      useUiStore.getState().toggleLegend();
+    }
+  }, []);
 
   return (
     <div className="fixed bottom-4 left-4 z-30 max-w-[280px]">

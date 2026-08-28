@@ -85,6 +85,10 @@ export function RoomPanel() {
             'sm:w-[400px]',
             // Mobile: bottom sheet adaptation — still respects spec but responsive
             'max-sm:bottom-0 max-sm:top-auto max-sm:h-[72vh] max-sm:max-w-none max-sm:w-full max-sm:rounded-t-2xl max-sm:border-l-0 max-sm:border-t',
+            // Tablet (md: 768–1023px): bottom sheet, slightly less tall, tighter top radius
+            'md:bottom-0 md:top-auto md:right-0 md:left-0 md:h-auto md:max-h-[60vh] md:w-full md:max-w-none md:rounded-t-xl md:border-l-0 md:border-t',
+            // Desktop (lg: 1024px+): revert to right-rail
+            'lg:top-0 lg:bottom-auto lg:h-full lg:max-h-none lg:border-t-0 lg:border-l',
           )}
           role="dialog"
           aria-modal="true"

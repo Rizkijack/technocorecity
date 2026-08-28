@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils/cn';
 import { useUiStore } from '@/stores/ui-store';
@@ -51,11 +51,12 @@ export function ErrorBanner({
   useEffect(() => {
     if (!hasError) return;
     if (resolvedVariant !== 'info') return;
+    if (storeBanner?.retryAfter) return;
     const timer = window.setTimeout(() => {
       handleDismiss();
     }, 5000);
     return () => window.clearTimeout(timer);
-  }, [hasError, resolvedVariant, handleDismiss, message]);
+  }, [hasError, resolvedVariant, handleDismiss, message, storeBanner?.retryAfter]);
 
   if (!hasError) return null;
 
@@ -75,8 +76,14 @@ export function ErrorBanner({
         aria-live="assertive"
       >
         <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <p className="min-w-0 flex-1 truncate font-mono text-sm">
-            {message}
+          <p className="flex min-w-0 flex-1 items-center truncate font-mono text-sm">
+            <span className="truncate">{message}</span>
+            {storeBanner?.retryAfter !== undefined ? (
+              <>
+                <span className="px-1">—</span>
+                <Countdown seconds={storeBanner.retryAfter} onDone={handleDismiss} />
+              </>
+            ) : null}
           </p>
           <div className="flex shrink-0 items-center gap-2">
             {onRetry ? (
@@ -105,3 +112,22 @@ export function ErrorBanner({
 }
 
 export default ErrorBanner;
+
+function Countdown({ seconds, onDone }: { seconds: number; onDone: () => void }) {
+  const [remaining, setRemaining] = useState(seconds)
+  useEffect(() => {
+    setRemaining(seconds)
+    const start = Date.now()
+    const id = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - start) / 1000)
+      const left = Math.max(0, seconds - elapsed)
+      setRemaining(left)
+      if (left === 0) {
+        clearInterval(id)
+        onDone()
+      }
+    }, 250)
+    return () => clearInterval(id)
+  }, [seconds, onDone])
+  return <span className="font-mono">{remaining}s</span>
+}

@@ -1,14 +1,16 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
+import { formatNumber } from '@/lib/utils/format';
 import { IconSpinner } from './icons';
 
 export type LoadingVeilProps = {
   isVisible?: boolean;
   progress?: { loaded: number; total?: number };
+  label?: string;
 };
 
-export function LoadingVeil({ isVisible = true, progress }: LoadingVeilProps) {
+export function LoadingVeil({ isVisible = true, progress, label }: LoadingVeilProps) {
   return (
     <AnimatePresence>
       {isVisible ? (
@@ -28,12 +30,12 @@ export function LoadingVeil({ isVisible = true, progress }: LoadingVeilProps) {
             className="h-8 w-8 animate-spin text-accent-cyan"
           />
           <p className="mt-4 text-sm font-medium tracking-wide text-text-secondary">
-            Loading TechnocoreCity...
+            {label ?? 'Loading TechnocoreCity…'}
           </p>
           {progress ? (
             <p className="mt-2 font-mono text-xs text-text-muted">
-              {progress.loaded}
-              {progress.total !== undefined ? ` / ${progress.total}` : ' loaded'}
+              {formatNumber(progress.loaded)}
+              {progress.total !== undefined ? ` / ${formatNumber(progress.total)}` : ' loaded'}
             </p>
           ) : null}
         </motion.div>

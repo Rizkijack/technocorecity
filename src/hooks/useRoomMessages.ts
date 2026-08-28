@@ -5,10 +5,14 @@ import useSWR from 'swr'
 
 import { fetchRoom, longPollRoom } from '@/lib/technocore/client'
 import { parseRoomMessages } from '@/lib/technocore/adapter'
+import { RateLimitError } from '@/lib/technocore/errors'
 import type { Message } from '@/lib/technocore/types'
+import { useUiStore } from '@/stores/ui-store'
 import { createVisibilityGate } from '@/lib/utils/throttle'
 
 const BACKOFF_MS = 2000
+
+let lastShownAt = 0
 
 export interface UseRoomMessagesResult {
   messages: Message[]
@@ -37,8 +41,21 @@ export function useRoomMessages(room: string | null): UseRoomMessagesResult {
     swrKey,
     async () => {
       if (!room) return []
-      const raw = await fetchRoom(room)
-      return toMessages(raw)
+      try {
+        const raw = await fetchRoom(room)
+        return toMessages(raw)
+      } catch (err) {
+        if (err instanceof RateLimitError) {
+          const now = Date.now()
+          if (now - lastShownAt > (err.retryAfter ?? 1) * 1000) {
+            lastShownAt = now
+            useUiStore
+              .getState()
+              .showError('Server busy — retrying in...', 'warning', err.retryAfter)
+          }
+        }
+        throw err
+      }
     },
     {
       dedupingInterval: 0,
@@ -116,6 +133,15 @@ export function useRoomMessages(room: string | null): UseRoomMessagesResult {
         } catch (err) {
           if (!active || controller.signal.aborted) return
           if (err instanceof Error && err.name === 'AbortError') return
+          if (err instanceof RateLimitError) {
+            const now = Date.now()
+            if (now - lastShownAt > (err.retryAfter ?? 1) * 1000) {
+              lastShownAt = now
+              useUiStore
+                .getState()
+                .showError('Server busy — retrying in...', 'warning', err.retryAfter)
+            }
+          }
           await sleep(BACKOFF_MS)
         }
       }

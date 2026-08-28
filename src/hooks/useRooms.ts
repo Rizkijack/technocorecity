@@ -5,7 +5,9 @@ import useSWR from 'swr'
 
 import { parseRooms } from '@/lib/technocore/adapter'
 import { fetchRooms } from '@/lib/technocore/client'
+import { RateLimitError } from '@/lib/technocore/errors'
 import type { Room } from '@/lib/technocore/types'
+import { useUiStore } from '@/stores/ui-store'
 import { useWorldStore } from '@/stores/world-store'
 
 export interface UseRoomsResult {
@@ -13,6 +15,8 @@ export interface UseRoomsResult {
   isLoading: boolean
   error: Error | undefined
   refresh: () => Promise<Room[] | undefined>
+  phase: 'rooms' | 'done'
+  progress: { loaded: number; total: number }
 }
 
 /**
@@ -45,10 +49,23 @@ export function useRooms(): UseRoomsResult {
     if (data) setRooms(data)
   }, [data, setRooms])
 
+  useEffect(() => {
+    if (!error) return
+    if (error instanceof RateLimitError) {
+      useUiStore
+        .getState()
+        .showError('Server busy — retrying in...', 'warning', error.retryAfter)
+      return
+    }
+    useUiStore.getState().showError(error.message, 'error')
+  }, [error])
+
   return {
     rooms: data,
     isLoading,
     error: error as Error | undefined,
     refresh: () => mutate(),
+    phase: data === undefined ? 'rooms' : 'done',
+    progress: { loaded: data ? 1 : 0, total: 1 },
   }
 }

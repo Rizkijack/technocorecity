@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from 'react'
 
 import { parseEventLine } from '@/lib/technocore/adapter'
 import { fetchEvents } from '@/lib/technocore/client'
+import { RateLimitError } from '@/lib/technocore/errors'
 import type { EventLine } from '@/lib/technocore/types'
+import { useUiStore } from '@/stores/ui-store'
 
 const POLL_INTERVAL_MS = 1000
 const ERROR_BACKOFF_MS = 2000
 const EVENT_CAP = 200
+
+let lastShownAt = 0
 
 export interface UseEventLineResult {
   events: EventLine[]
@@ -62,6 +66,15 @@ export function useEventLine(): UseEventLineResult {
         } catch (err) {
           if (cancelledRef.current || controller.signal.aborted) return
           if (err instanceof Error && err.name === 'AbortError') return
+          if (err instanceof RateLimitError) {
+            const now = Date.now()
+            if (now - lastShownAt > (err.retryAfter ?? 1) * 1000) {
+              lastShownAt = now
+              useUiStore
+                .getState()
+                .showError('Server busy — retrying in...', 'warning', err.retryAfter)
+            }
+          }
           await delay(ERROR_BACKOFF_MS)
           continue
         }
