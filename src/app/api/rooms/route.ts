@@ -23,12 +23,5 @@ export async function GET() {
   }
   const retryAfter = res.headers.get('retry-after')
   if (retryAfter) headers['retry-after'] = retryAfter
-  if (!res.ok && res.status !== 429) {
-    // For non-429 errors, surface upstream status but keep body for debugging.
-    return new NextResponse(body, { status: res.status, headers })
-  }
-  return new NextResponse(body, {
-    status: res.status,
-    headers,
-  })
+  return new NextResponse(body, { status: res.status, headers })
 }

@@ -47,8 +47,7 @@ export default function Page() {
       const results = await Promise.allSettled(
         top.map(async (r) => {
           if (cancelled || controller.signal.aborted) return
-          const raw = await fetchRoom(r.name, undefined, controller.signal)
-          const text = typeof raw === 'string' ? raw : String(raw ?? '')
+          const text = await fetchRoom(r.name, undefined, controller.signal)
           return { name: r.name, msgs: parseRoomMessages(text) } as const
         }),
       )

@@ -18,14 +18,13 @@ interface AgentPointProps {
 export function AgentPoint({ agent, roomPosition, offsetSeed }: AgentPointProps) {
   const groupRef = useRef<THREE.Group>(null)
 
-  // deterministic offset inside building footprint — spread agents around roof
+  // Deterministic offset inside building footprint — spread agents around the roof.
+  // X and Z use independent hash-like partitions of offsetSeed so points don't
+  // collapse onto a single line. Y is fixed (bob adds vertical motion in useFrame).
   const basePos = useMemo<[number, number, number]>(() => {
     const [rx, , rz] = roomPosition
     const offsetX = ((offsetSeed % 8) - 4) * 0.8
-    // use seed*7 variant for Z to decorrelate axes, fallback to /8 partition if needed
     const offsetZ = (((offsetSeed * 7) % 8) - 4) * 0.8
-    // Y fixed just above ground/building base for MVP; bob adds vertical motion
-    // We intentionally do not depend on building height here (no coupling to Building internals).
     return [rx + offsetX, 1, rz + offsetZ]
   }, [roomPosition, offsetSeed])
 
@@ -52,14 +51,15 @@ export function AgentPoint({ agent, roomPosition, offsetSeed }: AgentPointProps)
             y: e.clientY,
           })
         }}
-        onPointerOver={() => {
+        onPointerOver={(e) => {
+          e.stopPropagation()
           document.body.style.cursor = 'pointer'
         }}
-        onPointerOut={() => {
+        onPointerOut={(e) => {
+          e.stopPropagation()
           document.body.style.cursor = ''
         }}
       />
-
       {/* mono label — Html billboard approximated via center+distanceFactor */}
       {/* eslint-disable-next-line react/no-unknown-property */}
       <Html

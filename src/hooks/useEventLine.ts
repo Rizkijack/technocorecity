@@ -15,11 +15,8 @@ export interface UseEventLineResult {
   lastSeq: number
 }
 
-function toEvents(raw: unknown): EventLine[] {
-  if (Array.isArray(raw)) return raw as EventLine[]
-  if (typeof raw === 'string') return parseEventLine(raw)
-  return parseEventLine(String(raw ?? ''))
-}
+
+
 
 /**
  * Long-poll /r/events via fetchEvents, continuous loop, return {events, lastSeq}.
@@ -35,18 +32,14 @@ export function useEventLine(): UseEventLineResult {
     cancelledRef.current = false
     const controller = new AbortController()
 
-    const delay = (ms: number): Promise<void> =>
-      new Promise<void>((resolve) => {
+    const delay = (ms: number): Promise<void> => {
+      if (controller.signal.aborted) return Promise.resolve()
+      return new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, ms)
-        controller.signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(timer)
-            resolve()
-          },
-          { once: true },
-        )
+        controller.signal.addEventListener('abort', () => clearTimeout(timer), { once: true })
       })
+    }
+
 
     const loop = async (): Promise<void> => {
       while (!cancelledRef.current && !controller.signal.aborted) {
@@ -54,7 +47,7 @@ export function useEventLine(): UseEventLineResult {
         try {
           const raw = await fetchEvents(lastSeqRef.current, controller.signal)
           if (cancelledRef.current || controller.signal.aborted) return
-          const next = toEvents(raw)
+          const next = parseEventLine(raw)
           if (next.length > 0) {
             received = true
             setEvents((prev) => {
