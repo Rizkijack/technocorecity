@@ -1,0 +1,54 @@
+'use client'
+
+import { useEffect } from 'react'
+import useSWR from 'swr'
+
+import { parseRooms } from '@/lib/technocore/adapter'
+import { fetchRooms } from '@/lib/technocore/client'
+import type { Room } from '@/lib/technocore/types'
+import { useWorldStore } from '@/stores/world-store'
+
+export interface UseRoomsResult {
+  rooms: Room[] | undefined
+  isLoading: boolean
+  error: Error | undefined
+  refresh: () => Promise<Room[] | undefined>
+}
+
+/**
+ * SWR-backed room list.
+ * - key ['rooms']
+ * - fetcher parses text via parseRooms (supports both string and pre-parsed array for test mocks)
+ * - dedup 5s, revalidateOnFocus true, refreshInterval 0
+ * - on every successful fetch, mirrors the result into the world store
+ *   so the 3D scene can render buildings without re-fetching.
+ */
+export function useRooms(): UseRoomsResult {
+  const { data, error, isLoading, mutate } = useSWR<Room[], Error>(
+    ['rooms'],
+    async () => {
+      const raw = (await fetchRooms()) as unknown
+      if (Array.isArray(raw)) return raw as Room[]
+      if (typeof raw === 'string') return parseRooms(raw)
+      return parseRooms(String(raw))
+    },
+    {
+      dedupingInterval: 5000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      refreshInterval: 0,
+    },
+  )
+
+  const setRooms = useWorldStore((s) => s.setRooms)
+  useEffect(() => {
+    if (data) setRooms(data)
+  }, [data, setRooms])
+
+  return {
+    rooms: data,
+    isLoading,
+    error: error as Error | undefined,
+    refresh: () => mutate(),
+  }
+}
