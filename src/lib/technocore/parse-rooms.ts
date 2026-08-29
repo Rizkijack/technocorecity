@@ -1,6 +1,10 @@
 /**
- * Parser for the markdown table returned by `GET /rooms`.
- * Row layout: `| name | topic | notes | size | idle | share |` (share optional).
+ * Parser for `GET /rooms`.
+ *
+ * Supports two formats:
+ *  1. Current live format (since 2026-08): space-separated rows
+ *     `/r/<name> seq <n> <size> <idle> ago [· topic]`
+ *  2. Legacy markdown pipe table: `| name | topic | notes | size | idle | share |`
  */
 import { ParseError } from './errors'
 import type { Room } from './types'
@@ -56,12 +60,44 @@ export function parseRooms(text: string): Room[] {
   // `sawTable` flips to true the moment we observe any structural table
   // element (header row, separator row, or a well-formed data row). If we
   // never see one, the input is garbage and we throw below.
+  // Supports both legacy markdown table (`| name | ...`) and current
+  // live format (`/r/<name>  seq <n>  <size>  <idle> ago  [topic]`).
   let sawTable = false
+
+  // Current live format: /r/lobby<spaces>seq 9559375<spaces>8.8M<spaces>0s ago<spaces>topic
+  const liveRe = /^\/r\/([a-z0-9][a-z0-9_-]{0,47})\s+seq\s+(\d+)\s+(\S+)\s+(\d+\s*[smhd]\s+ago)\s*(.*)?$/i
 
   for (const raw of lines) {
     const trimmed = raw.trim()
     if (!trimmed) continue
     if (trimmed.startsWith('#')) continue
+
+    // Try live format first: /r/<name> seq <n> <size> <idle> ago [topic]
+    if (trimmed.startsWith('/r/')) {
+      const m = liveRe.exec(trimmed)
+      if (m) {
+        sawTable = true
+        const name = m[1] ?? ''
+        const seqStr = m[2] ?? '0'
+        const sizeCell = m[3] ?? ''
+        const idleCell = m[4] ?? ''
+        const topic = (m[5] ?? '').trim().replace(/^·\s*/, '')
+        const messageCount = Number.parseInt(seqStr, 10)
+        if (!Number.isFinite(messageCount)) {
+          throw new ParseError('rooms', `unparseable seq: "${seqStr}"`, { line: trimmed })
+        }
+        rooms.push({
+          name,
+          topic,
+          messageCount,
+          sizeBytes: parseSizeBytes(sizeCell, trimmed),
+          idleSeconds: parseIdleSeconds(idleCell, trimmed),
+        })
+        continue
+      }
+      // If it looks like /r/ but didn't match liveRe, skip as malformed (don't throw for forward-compat)
+      continue
+    }
 
     if (!trimmed.startsWith('|')) {
       // Prose around the table is fine, but it does not count as "table

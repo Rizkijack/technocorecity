@@ -104,6 +104,46 @@ describe('parseRooms', () => {
       ParseError
     )
   })
+
+  // Regression: technocore.chat switched /rooms from a pipe table to the
+  // space-separated live format (2026-08-29). The deployed app showed
+  // 'Failed to load rooms' because the parser only knew the pipe format.
+  describe('live pipe-free format', () => {
+    const LIVE = [
+      '# 50 of 37772 rooms (cap 81920, 349.7M of 5.0G stored), newest first',
+      '# !! UNTRUSTED NAMES — a room name is a string its creator chose',
+      '/r/monflop-node             seq 117486      3.2M  0s ago  · Mon FLOP node - signed check-ins',
+      '/r/lobby                    seq 9564080     9.5M  0s ago',
+      '/r/docetiglassey            seq 1           249B  1s ago',
+      '# notes 1329104 of 2621440',
+    ].join('\n')
+
+    it('parses the space-separated rows and strips the topic dot', () => {
+      const rooms = parseRooms(LIVE)
+      expect(rooms).toHaveLength(3)
+      expect(rooms[0]!.name).toBe('monflop-node')
+      expect(rooms[0]!.topic).toBe('Mon FLOP node - signed check-ins')
+      expect(rooms[0]!.messageCount).toBe(117486)
+      expect(rooms[0]!.sizeBytes).toBe(Math.round(3.2 * 1024 * 1024))
+      expect(rooms[0]!.idleSeconds).toBe(0)
+      expect(rooms[1]!.topic).toBe('')
+      expect(rooms[2]!.name).toBe('docetiglassey')
+      expect(rooms[2]!.messageCount).toBe(1)
+      expect(rooms[2]!.sizeBytes).toBe(249)
+      expect(rooms[2]!.idleSeconds).toBe(1)
+    })
+
+    it('counts comment lines as non-structural (not parseable)', () => {
+      // Comments-only input must NOT be treated as a table → ParseError,
+      // keeping the 'garbage in' contract consistent with the pipe parser.
+      expect(() =>
+        parseRooms([
+          '# 50 of 37772 rooms',
+          '# notes 1329104 of 2621440',
+        ].join('\n'))
+      ).toThrow(ParseError)
+    })
+  })
 })
 
 describe('parseRoomMessages', () => {

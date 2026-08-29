@@ -31,10 +31,16 @@ export function useRooms(): UseRoomsResult {
   const { data, error, isLoading, mutate } = useSWR<Room[], Error>(
     ['rooms'],
     async () => {
-      const raw = (await fetchRooms()) as unknown
-      if (Array.isArray(raw)) return raw as Room[]
-      if (typeof raw === 'string') return parseRooms(raw)
-      return parseRooms(String(raw))
+      try {
+        const raw = (await fetchRooms()) as unknown
+        if (Array.isArray(raw)) return raw as Room[]
+        if (typeof raw === 'string') return parseRooms(raw)
+        return parseRooms(String(raw))
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[useRooms] fetchRooms failed:', err)
+        throw err
+      }
     },
     {
       dedupingInterval: 5000,
