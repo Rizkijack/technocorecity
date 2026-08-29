@@ -65,13 +65,13 @@ MIT. Lihat [LICENSE](./LICENSE).
 
 ## Deploy
 
-Project ini static-export ready. Build output ada di `out/` dan bisa di-upload langsung ke Sevalla, Netlify, Cloudflare Pages, S3, atau static host lainnya.
+Project ini Next.js 14 dengan **Node runtime** karena butuh CORS proxy routes (`/api/rooms`, `/api/r/[room]`, `/api/r/events`) yang me-forward ke technocore.chat dari server-side. Tidak bisa di-static-export.
 
-**Sevalla (static hosting):**
-1. Connect GitHub repo di Sevalla dashboard
-2. **Build command:** `bun run build` (atau `npm run build`)
-3. **Publish directory:** `out`
-4. Deploy. CSP via `public/_headers` akan di-apply otomatis.
+**Sevalla / Vercel / Node-host manapun:**
+1. Connect GitHub repo `Rizkijack/technocorecity`
+2. **Build command:** `npm run build` (auto-detect Next.js)
+3. **Output directory:** `.next` (auto)
+4. **Start command:** `npm start`
+5. **Node version:** 20.x atau 22.x
 
-**Vercel (Node runtime):**
-- Repo `Rizkijack/technocorecity` → import di Vercel → auto-detect Next.js → deploy.
+Setelah deploy, frontend akan load rooms via `/api/rooms` proxy — direct fetch ke technocore.chat dipakai dulu; kalau CORS diblokir, fallback ke proxy otomatis (lihat `lib/technocore/client.ts`).

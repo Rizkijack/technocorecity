@@ -1,10 +1,12 @@
 /** @type {import("next").NextConfig} */
-// Node runtime deploy (Sevalla / Vercel compatible). The Next.js server is
-// used only for the CORS proxy routes under /api/* — all rendering remains
-// client-side. Security headers are applied via next.config so the deploy
-// host doesn't need to know about _headers semantics.
+// Application Hosting (SSR) on Sevalla. We use `output: 'standalone'` so the
+// production build is self-contained and starts via `node server.js`. The
+// Next.js server runs the CORS proxy routes under /api/*; all other rendering
+// is client-side. Security headers are applied here so the host doesn't need
+// to know about _headers semantics.
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   transpilePackages: ['three'],
   experimental: {
     optimizePackageImports: ['@react-three/drei', '@react-three/fiber'],
