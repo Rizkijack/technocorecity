@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { AgentPopover } from '@/components/ui/AgentPopover'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
@@ -10,11 +10,14 @@ import { Legend } from '@/components/ui/Legend'
 import { MobileNotice } from '@/components/ui/MobileNotice'
 import { LoadingVeil } from '@/components/ui/LoadingVeil'
 import { RoomPanel } from '@/components/ui/RoomPanel'
+import { Toast } from '@/components/ui/Toast'
+import { useEventLine } from '@/hooks/useEventLine'
 import { useRooms } from '@/hooks/useRooms'
 import { parseRoomMessages } from '@/lib/technocore/adapter'
 import { aggregateAgents } from '@/lib/technocore/agents'
 import { fetchRoom } from '@/lib/technocore/client'
 import type { Message } from '@/lib/technocore/types'
+import { useUiStore } from '@/stores/ui-store'
 import { useWorldStore } from '@/stores/world-store'
 
 // World contains the entire R3F canvas — load only on the client.
@@ -40,6 +43,25 @@ export default function Page() {
   const [agentProgress, setAgentProgress] = useState<
     { loaded: number; total: number } | null
   >(null)
+
+  // F-101: feed `created <room>` events into the world (scale-in tween) and
+  // the UI (bottom-left toast). Toast is debounced to ≤1 per 5s; markRoomNew
+  // always fires so concurrent new rooms still animate in.
+  const { events } = useEventLine()
+  const lastToastAtRef = useRef(0)
+  const processedEventsRef = useRef(0)
+  useEffect(() => {
+    if (events.length <= processedEventsRef.current) return
+    const fresh = events.slice(processedEventsRef.current)
+    processedEventsRef.current = events.length
+    for (const event of fresh) {
+      useWorldStore.getState().markRoomNew(event.roomName)
+      if (Date.now() - lastToastAtRef.current > 5000) {
+        lastToastAtRef.current = Date.now()
+        useUiStore.getState().showToast(`New room: ${event.roomName}`)
+      }
+    }
+  }, [events])
 
   // Background: derive an agent directory from the busiest rooms' recent
   // messages. Without this, <World> sees an empty agents Map and renders
@@ -107,6 +129,7 @@ export default function Page() {
       <RoomPanel />
       <AgentPopover />
       <ErrorBanner />
+      <Toast />
       {veilVisible ? (
         <LoadingVeil isVisible label={veilLabel} progress={veilProgress} />
       ) : null}

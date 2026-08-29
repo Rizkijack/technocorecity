@@ -8,11 +8,17 @@ export interface ErrorBanner {
   retryAfter?: number
 }
 
+export interface Toast {
+  message: string
+  id: number
+}
+
 export interface UiState {
   legendCollapsed: boolean
   hudVisible: boolean
   errorBanner: ErrorBanner | null
   mobileNoticeDismissed: boolean
+  toast: Toast | null
 }
 
 export interface UiActions {
@@ -21,15 +27,20 @@ export interface UiActions {
   showError: (message: string, variant: ErrorVariant, retryAfter?: number) => void
   dismissError: () => void
   dismissMobileNotice: () => void
+  showToast: (message: string) => void
+  dismissToast: () => void
 }
 
 export type UiStore = UiState & UiActions
+
+let toastCounter = 0
 
 export const useUiStore = create<UiStore>()((set) => ({
   legendCollapsed: false,
   hudVisible: true,
   errorBanner: null,
   mobileNoticeDismissed: false,
+  toast: null,
 
   toggleLegend: () =>
     set((state) => ({ legendCollapsed: !state.legendCollapsed })),
@@ -47,4 +58,11 @@ export const useUiStore = create<UiStore>()((set) => ({
   dismissError: () => set(() => ({ errorBanner: null })),
 
   dismissMobileNotice: () => set(() => ({ mobileNoticeDismissed: true })),
+
+  showToast: (message) => {
+    toastCounter += 1
+    set(() => ({ toast: { message, id: toastCounter } }))
+  },
+
+  dismissToast: () => set(() => ({ toast: null })),
 }))

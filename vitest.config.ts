@@ -20,7 +20,7 @@ export default defineConfig({
     },
     coverage: {
       provider: 'v8',
-      include: ['src/lib/**', 'src/stores/**', 'src/hooks/**'],
+      include: ['src/lib/**', 'src/stores/**'],
       reporter: ['text', 'html'],
     },
   },

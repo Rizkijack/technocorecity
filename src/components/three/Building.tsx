@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
@@ -47,6 +47,12 @@ export function Building({ room, position, index: _index }: BuildingProps) {
   const selectedRoomId = useWorldStore((s) => s.selectedRoomId)
   const isSelected = selectedRoomId === room.name
 
+  // F-101: timestamp (ms epoch) when this room was first observed via
+  // `created <room>` events. When set within the last 1.5s, the building
+  // tweens in from scale 0 → 1 with ease-out. Selects the primitive number
+  // so zustand re-renders correctly when the underlying Map is replaced.
+  const newAt = useWorldStore((s) => s.newlyCreatedAt.get(room.name))
+
   const baseIntensity = useMemo(() => {
     const log = Math.log10(room.messageCount + 1)
     // 0.15 baseline, subtle grow for active rooms, cap ~0.5
@@ -57,12 +63,37 @@ export function Building({ room, position, index: _index }: BuildingProps) {
 
   const meshRef = useRef<THREE.Mesh>(null)
 
+  // When a new timestamp is set, snap to scale 0 so the first frame of the
+  // tween doesn't show the building at full size (R3F's first commit happens
+  // after the React render but before useFrame runs).
+  useEffect(() => {
+    if (newAt === undefined) return
+    if (meshRef.current) {
+      meshRef.current.scale.setScalar(0)
+    }
+  }, [newAt])
+
   // Cap rotation at one full turn (2π) so selected buildings don't spin
   // indefinitely when the panel stays open. Resets each time selection toggles
   // (deselecting flips isSelected false → guards on the next frame, and the
   // mesh's rotation.y is reset to 0 on the next click via selectRoom toggling).
+  // Also runs the F-101 scale-in tween for newly created rooms.
   useFrame((_, delta) => {
-    if (!meshRef.current || !isSelected) return
+    if (!meshRef.current) return
+
+    // F-101: scale 0 → 1 over 1.5s with ease-out (cubic).
+    if (newAt !== undefined) {
+      const elapsed = (Date.now() - newAt) / 1500
+      if (elapsed < 1) {
+        const t = Math.max(0, elapsed)
+        const eased = 1 - Math.pow(1 - t, 3)
+        meshRef.current.scale.setScalar(eased)
+      } else if (meshRef.current.scale.x !== 1) {
+        meshRef.current.scale.setScalar(1)
+      }
+    }
+
+    if (!isSelected) return
     const TWO_PI = Math.PI * 2
     if (meshRef.current.rotation.y < TWO_PI) {
       meshRef.current.rotation.y = Math.min(

@@ -7,7 +7,7 @@ import { useWorldStore } from '@/stores/world-store'
 import { computePositions } from '@/lib/three/layout'
 import { Ground } from './Ground'
 import { Building } from './Building'
-import { AgentPoint } from './AgentPoint'
+import { AgentCloud, buildAgentInstances } from './AgentCloud'
 import { CameraRig } from './CameraRig'
 import { PostFX } from '@/lib/three/postprocessing'
 
@@ -17,6 +17,14 @@ export function World() {
 
   const roomsArray = useMemo(() => Array.from(rooms.values()), [rooms])
   const positions = useMemo(() => computePositions(roomsArray), [roomsArray])
+
+  // Build the agent instance list once per (rooms, agents, positions) change.
+  // All (agent, room) pairs are flattened here so <AgentCloud> can render them
+  // in 2 instanced draw calls instead of N individual <mesh> nodes.
+  const agentInstances = useMemo(
+    () => buildAgentInstances(agents, rooms, positions),
+    [agents, rooms, positions],
+  )
 
   return (
     <Canvas
@@ -54,31 +62,8 @@ export function World() {
         return <Building key={room.name} room={room} position={[x, 0, z]} index={i} />
       })}
 
-      {/* agent points — deterministic seed from key+room so offset is stable */}
-      {Array.from(agents.values()).flatMap((agent) =>
-        Array.from(agent.rooms)
-          .map((roomName) => {
-            const p = positions.get(roomName)
-            if (!p) return null
-            const [x, z] = p
-            // FNV-ish hash of key:room for deterministic offsetSeed without leaking global state
-            const str = `${agent.key}:${roomName}`
-            let seed = 2166136261 >>> 0
-            for (let j = 0; j < str.length; j++) {
-              seed ^= str.charCodeAt(j)
-              seed = Math.imul(seed, 16777619) >>> 0
-            }
-            return (
-              <AgentPoint
-                key={`${agent.key}:${roomName}`}
-                agent={agent}
-                roomPosition={[x, 0, z]}
-                offsetSeed={seed}
-              />
-            )
-          })
-          .filter((n): n is React.ReactElement => n !== null),
-      )}
+      {/* agent cloud — single <instancedMesh> per signed/unsigned group */}
+      <AgentCloud instances={agentInstances} />
 
       <CameraRig />
       <PostFX />
