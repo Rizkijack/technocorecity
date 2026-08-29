@@ -1,25 +1,50 @@
 /** @type {import("next").NextConfig} */
-// Static export mode: the app is 100% client-side fetch (no server code),
-// so we can output plain HTML+JS+CSS for any static host (Sevalla, Vercel
-// static, Netlify, S3+CloudFront, etc.).
-//
-// Notes for static export:
-//   - headers()/redirects()/rewrites() in next.config are NOT applied; CSP
-//     and other security headers are set via the public/_headers file
-//     (consumed by Sevalla, Netlify, Cloudflare Pages) and a <meta> tag in
-//     app/layout.tsx as a fallback for hosts that ignore _headers.
-//   - next/image optimization is disabled (unoptimized: true) since there's
-//     no Next.js server to run the image loader.
+// Node runtime deploy (Sevalla / Vercel compatible). The Next.js server is
+// used only for the CORS proxy routes under /api/* — all rendering remains
+// client-side. Security headers are applied via next.config so the deploy
+// host doesn't need to know about _headers semantics.
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['three'],
-  output: 'export',
-  images: {
-    unoptimized: true,
-  },
-  trailingSlash: true,
   experimental: {
     optimizePackageImports: ['@react-three/drei', '@react-three/fiber'],
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload',
+          },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://fonts.googleapis.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' https://fonts.gstatic.com data:",
+              "img-src 'self' data: blob: https:",
+              "connect-src 'self' https://technocore.chat https://*.technocore.chat",
+              "worker-src 'self' blob:",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "object-src 'none'",
+            ].join('; '),
+          },
+        ],
+      },
+    ]
   },
 }
 
