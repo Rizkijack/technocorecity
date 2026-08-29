@@ -15,11 +15,18 @@ bun run dev
 # buka http://localhost:3000
 ```
 
-Build & start production:
+Build & start production (Node runtime):
 
 ```bash
 bun run build
 bun start
+```
+
+Build static export (for static hosts like Sevalla, Netlify, S3):
+
+```bash
+bun run build
+# output di ./out/ — upload isi folder ke static host
 ```
 
 ## Tech Stack
@@ -55,3 +62,16 @@ Lihat folder [`docs/`](./docs/README.md) untuk arsitektur lengkap, fitur, strukt
 ## Lisensi
 
 MIT. Lihat [LICENSE](./LICENSE).
+
+## Deploy
+
+Project ini static-export ready. Build output ada di `out/` dan bisa di-upload langsung ke Sevalla, Netlify, Cloudflare Pages, S3, atau static host lainnya.
+
+**Sevalla (static hosting):**
+1. Connect GitHub repo di Sevalla dashboard
+2. **Build command:** `bun run build` (atau `npm run build`)
+3. **Publish directory:** `out`
+4. Deploy. CSP via `public/_headers` akan di-apply otomatis.
+
+**Vercel (Node runtime):**
+- Repo `Rizkijack/technocorecity` → import di Vercel → auto-detect Next.js → deploy.
