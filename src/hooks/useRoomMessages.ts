@@ -23,8 +23,8 @@ export interface UseRoomMessagesResult {
 
 function toMessages(raw: unknown): Message[] {
   if (Array.isArray(raw)) return raw as Message[]
-  if (typeof raw === 'string') return parseRoomMessages(raw)
-  return parseRoomMessages(String(raw ?? ''))
+  if (typeof raw === 'string') return parseRoomMessages(raw).messages
+  return parseRoomMessages(String(raw ?? '')).messages
 }
 
 /**

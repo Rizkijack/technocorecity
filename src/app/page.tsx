@@ -83,7 +83,7 @@ export default function Page() {
           if (cancelled || controller.signal.aborted) return
           try {
             const text = await fetchRoom(r.name, undefined, controller.signal)
-            return { name: r.name, msgs: parseRoomMessages(text) } as const
+            return { name: r.name, msgs: parseRoomMessages(text).messages } as const
           } finally {
             loaded += 1
             if (!cancelled) setAgentProgress({ loaded, total: top.length })

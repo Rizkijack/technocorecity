@@ -58,6 +58,21 @@ describe('parseRooms', () => {
     ])
   })
 
+  it('parses decimal and bare size cells and rejects multi-dot sizes', () => {
+    const text = [
+      '| name | topic | notes | size | idle | share |',
+      '|------|-------|-------|------|------|-------|',
+      '| a | t | 1 | 1.2k | 1m | share |',
+      '| b | t | 2 | 640 | 1m | share |',
+      '| c | t | 3 | 3M | 1m | share |',
+    ].join('\n')
+    const rooms = parseRooms(text)
+    expect(rooms.map((r) => r.sizeBytes)).toEqual([1229, 640, 3145728])
+
+    // Multi-dot is malformed: must throw, not silently truncate to 1.2.
+    expect(() => parseRooms('| d | t | 4 | 1.2.3k | 1m |')).toThrow(ParseError)
+  })
+
   it('returns [] for empty input', () => {
     expect(parseRooms('')).toEqual([])
   })
@@ -98,8 +113,9 @@ describe('parseRoomMessages', () => {
       'seq 2|<did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK>|signed message here',
       'seq 3|~bob|another one',
     ].join('\n')
-    const messages = parseRoomMessages(text)
+    const { messages, dropped } = parseRoomMessages(text)
     expect(messages).toHaveLength(3)
+    expect(dropped).toBe(0)
 
     expect(messages[0]!.seq).toBe(1)
     expect(messages[0]!.from).toBe('~alice')
@@ -120,8 +136,9 @@ describe('parseRoomMessages', () => {
 
   it('accepts the plain <seq>|<from>|<text> style without the seq prefix', () => {
     const text = ['1|~carol|hi', '2|<did:key:z6MkTest>|yo'].join('\n')
-    const messages = parseRoomMessages(text)
+    const { messages, dropped } = parseRoomMessages(text)
     expect(messages).toHaveLength(2)
+    expect(dropped).toBe(0)
     expect(messages[0]!.seq).toBe(1)
     expect(messages[0]!.from).toBe('~carol')
     expect(messages[1]!.seq).toBe(2)
@@ -130,26 +147,26 @@ describe('parseRoomMessages', () => {
 
   it('preserves text containing pipe characters', () => {
     const text = '5|~dan|a | b | c'
-    const messages = parseRoomMessages(text)
+    const { messages } = parseRoomMessages(text)
     expect(messages).toHaveLength(1)
     expect(messages[0]!.text).toBe('a | b | c')
   })
 
   it('returns [] for empty response and whitespace-only response', () => {
-    expect(parseRoomMessages('')).toEqual([])
-    expect(parseRoomMessages('\n\n  \n')).toEqual([])
+    expect(parseRoomMessages('')).toEqual({ messages: [], dropped: 0 })
+    expect(parseRoomMessages('\n\n  \n')).toEqual({ messages: [], dropped: 0 })
   })
 
   it('handles trailing newline', () => {
     const text = 'seq 1|~alice|one\nseq 2|~bob|two\n'
-    const messages = parseRoomMessages(text)
+    const { messages } = parseRoomMessages(text)
     expect(messages).toHaveLength(2)
     expect(messages[1]!.text).toBe('two')
   })
 
   it('preserves unicode text (emoji, CJK)', () => {
     const text = 'seq 1|~umi|こんにちは 🌏 héllo'
-    const messages = parseRoomMessages(text)
+    const { messages } = parseRoomMessages(text)
     expect(messages).toHaveLength(1)
     expect(messages[0]!.text).toBe('こんにちは 🌏 héllo')
   })
@@ -161,10 +178,30 @@ describe('parseRoomMessages', () => {
       '12|plain|no marker on sender',
       'seq 7|~ok|fine',
     ].join('\n')
-    const messages = parseRoomMessages(text)
+    const { messages, dropped } = parseRoomMessages(text)
     expect(messages).toHaveLength(1)
     expect(messages[0]!.seq).toBe(7)
     expect(messages[0]!.text).toBe('fine')
+    // Only the writer-marker rejection counts; missing seq / no-pipe junk
+    // and the absence of a marker guard elsewhere are not message drops.
+    expect(dropped).toBe(1)
+  })
+
+  it('counts dropped lines whose sender lacks a ~ or did:key: marker', () => {
+    const text = [
+      'seq 1|~alice|hello world',
+      'seq 2|plainname|no marker anywhere',
+      '# room meta  messages 5  range 1..5',
+      '!! server comment',
+      '',
+      'seq 3|<did:key:z6MkTest>|signed ok',
+      'seq 4|bare|another dropped one',
+    ].join('\n')
+    const { messages, dropped } = parseRoomMessages(text)
+    expect(messages.map((m) => m.seq)).toEqual([1, 3])
+    // Bare-sender lines count; comment/header/blank lines are structural
+    // and never count.
+    expect(dropped).toBe(2)
   })
 })
 

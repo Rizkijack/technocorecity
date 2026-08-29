@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import * as THREE from 'three'
@@ -62,6 +62,17 @@ export function AgentCloud({ instances }: AgentCloudProps) {
   const unsignedRef = useRef<THREE.InstancedMesh>(null)
   const selectAgent = useWorldStore((s) => s.selectAgent)
 
+  // If the component unmounts while the pointer is over a mesh (agents churn),
+  // onPointerOut never fires and the cursor would stick as 'pointer'. Restore
+  // it on unmount.
+  useEffect(() => {
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.style.cursor = ''
+      }
+    }
+  }, [])
+
   // Partition into two arrays so each <instancedMesh> only holds its kind.
   const { signed, unsigned, all } = useMemo(() => {
     const signed: AgentInstance[] = []
@@ -98,6 +109,12 @@ export function AgentCloud({ instances }: AgentCloudProps) {
         if (!inst) continue
         const bob = Math.sin(t * 0.9 + inst.phase) * 0.22
         _position.set(inst.position[0], inst.position[1] + bob, inst.position[2])
+        // Signed agents breathe (gentle scale pulse, amplitude 0.08 at
+        // 2 rad/s, phase-locked per instance); unsigned stay static-size.
+        const pulse = inst.isSigned
+          ? 1 + 0.08 * Math.sin(t * 2.0 + inst.phase)
+          : 1
+        _scale.set(pulse, pulse, pulse)
         _matrix.compose(_position, _quat, _scale)
         mesh.setMatrixAt(i, _matrix)
       }

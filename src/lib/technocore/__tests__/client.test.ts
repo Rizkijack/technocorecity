@@ -455,5 +455,61 @@ describe('technocore client', () => {
       await expect(withRetry(fn, { maxRateLimitRetries: 0 })).rejects.toBeInstanceOf(RateLimitError)
       expect(fn).toHaveBeenCalledTimes(1)
     })
+
+    test('RateLimitError retryAfter 86400 is clamped to 60s per attempt', async () => {
+      const fn = vi.fn()
+        .mockRejectedValueOnce(new RateLimitError(429, 'r', 86400, 'read'))
+        .mockRejectedValueOnce(new RateLimitError(429, 'r', 86400, 'read'))
+        .mockResolvedValueOnce('ok')
+      const promise = withRetry(fn)
+      expect(fn).toHaveBeenCalledTimes(1)
+      // still pending after 59_999ms — would already have fired if the
+      // unbounded 86400s hint were used
+      await vi.advanceTimersByTimeAsync(59_999)
+      expect(fn).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(fn).toHaveBeenCalledTimes(2)
+      // second attempt is clamped the same way
+      await vi.advanceTimersByTimeAsync(60_000)
+      const res = await promise
+      expect(res).toBe('ok')
+      expect(fn).toHaveBeenCalledTimes(3)
+    })
+
+    test('RateLimitError retryAfter 2 sleeps 2000ms per attempt (unchanged)', async () => {
+      const fn = vi.fn()
+        .mockRejectedValueOnce(new RateLimitError(429, 'r', 2, 'read'))
+        .mockRejectedValueOnce(new RateLimitError(429, 'r', 2, 'read'))
+        .mockResolvedValueOnce('ok')
+      const promise = withRetry(fn)
+      expect(fn).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(2000)
+      expect(fn).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(2000)
+      const res = await promise
+      expect(res).toBe('ok')
+      expect(fn).toHaveBeenCalledTimes(3)
+    })
+
+    test('malformed retryAfter (NaN/negative) falls back to 1000ms', async () => {
+      const fn = vi.fn()
+        .mockRejectedValueOnce(new RateLimitError(429, 'r', Number.NaN, 'read'))
+        .mockRejectedValueOnce(new RateLimitError(429, 'r', -5, 'read'))
+        .mockResolvedValueOnce('ok')
+      const promise = withRetry(fn)
+      expect(fn).toHaveBeenCalledTimes(1)
+      // NaN → 1000ms default (NaN in setTimeout would fire ~immediately)
+      await vi.advanceTimersByTimeAsync(999)
+      expect(fn).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      expect(fn).toHaveBeenCalledTimes(2)
+      // negative → 1000ms default
+      await vi.advanceTimersByTimeAsync(999)
+      expect(fn).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(1)
+      const res = await promise
+      expect(res).toBe('ok')
+      expect(fn).toHaveBeenCalledTimes(3)
+    })
   })
 })

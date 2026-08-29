@@ -7,8 +7,14 @@ import { AbortError, NetworkError, RateLimitError } from './errors'
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'https://technocore.chat'
 
-const sleep = (ms: number): Promise<void> =>
-  new Promise(resolve => setTimeout(resolve, ms))
+const sleep = (ms: number): Promise<void> => {
+  const { promise, resolve } = Promise.withResolvers<void>()
+  setTimeout(resolve, ms)
+  return promise
+}
+
+/** Per-attempt cap for RateLimitError backoff: a bad Retry-After hint must not block us. */
+const MAX_RATE_LIMIT_WAIT_MS = 60_000
 
 async function request(url: string, signal?: AbortSignal): Promise<string> {
   let res: Response
@@ -97,9 +103,10 @@ export interface WithRetryOptions {
 }
 
 /**
- * Retry helper: RateLimitError → sleep `retryAfter` seconds then retry
- * (capped, default 5); NetworkError → exponential backoff 1s/2s/4s
- * (max 3 retries). Anything else propagates immediately.
+ * Retry helper: RateLimitError → sleep `retryAfter` seconds (capped at 60s
+ * per attempt; malformed/negative hints fall back to 1s) then retry
+ * (default 5); NetworkError → exponential backoff 1s/2s/4s (max 3 retries).
+ * Anything else propagates immediately.
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -117,7 +124,14 @@ export async function withRetry<T>(
       if (err instanceof RateLimitError) {
         if (rateLimitAttempts >= maxRateLimit) throw err
         rateLimitAttempts += 1
-        await sleep(err.retryAfter * 1000)
+        // Malformed/negative hints (NaN would poison setTimeout, negatives fire
+        // immediately) fall back to 1s; the hint is clamped to 60s per attempt
+        // so a buggy Retry-After can't block the request for hours.
+        const retryAfterMs =
+          Number.isFinite(err.retryAfter) && err.retryAfter >= 0
+            ? err.retryAfter * 1000
+            : 1000
+        await sleep(Math.min(MAX_RATE_LIMIT_WAIT_MS, retryAfterMs))
         continue
       }
       if (err instanceof NetworkError) {

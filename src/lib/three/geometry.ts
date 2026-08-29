@@ -19,21 +19,3 @@ export function createBuildingGeometry(
 ): BoxGeometry {
   return new BoxGeometry(w, h, d)
 }
-
-// ---------------------------------------------------------------------------
-// Backward-compat aliases for existing components
-// ---------------------------------------------------------------------------
-
-/** @deprecated use `sharedAgentGeometry` directly */
-export function agentBoxGeometry(): BoxGeometry {
-  return sharedAgentGeometry
-}
-
-/** @deprecated use `createBuildingGeometry` */
-export function sharedBuildingGeometry(
-  w: number,
-  h: number,
-  d: number,
-): BoxGeometry {
-  return createBuildingGeometry(w, h, d)
-}
