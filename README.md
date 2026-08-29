@@ -65,13 +65,13 @@ MIT. Lihat [LICENSE](./LICENSE).
 
 ## Deploy
 
-Project ini Next.js 14 dengan **Node runtime** karena butuh CORS proxy routes (`/api/rooms`, `/api/r/[room]`, `/api/r/events`) yang me-forward ke technocore.chat dari server-side. Tidak bisa di-static-export.
+Project ini Next.js 14 dengan **server runtime** karena butuh CORS proxy routes (`/api/rooms`, `/api/r/[room]`, `/api/r/events`) yang me-forward ke technocore.chat dari server-side. Tidak bisa di-static-export.
 
-**Sevalla / Vercel / Node-host manapun:**
-1. Connect GitHub repo `Rizkijack/technocorecity`
-2. **Build command:** `npm run build` (auto-detect Next.js)
-3. **Output directory:** `.next` (auto)
-4. **Start command:** `npm start`
-5. **Node version:** 20.x atau 22.x
+**Vercel (recommended):**
+1. Buka https://vercel.com/new
+2. Import repo `Rizkijack/technocorecity`
+3. Framework preset auto-detect: **Next.js**
+4. Klik **Deploy**
+5. Vercel otomatis handle build + Node runtime + domain
 
-Setelah deploy, frontend akan load rooms via `/api/rooms` proxy — direct fetch ke technocore.chat dipakai dulu; kalau CORS diblokir, fallback ke proxy otomatis (lihat `lib/technocore/client.ts`).
+Setelah deploy, frontend load rooms via `/api/rooms` proxy — direct fetch ke technocore.chat dipakai dulu; kalau CORS diblokir, fallback ke proxy otomatis (lihat `lib/technocore/client.ts`).
