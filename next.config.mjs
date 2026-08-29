@@ -24,7 +24,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com data:",
               "img-src 'self' data: blob: https:",
-              "connect-src 'self' https://technocore.chat https://*.technocore.chat https://*.vercel.app",
+              "connect-src 'self' https://technocore.chat https://*.technocore.chat https://*.vercel.app https://*.sevalla.app https://*.sevalla.com",
               "worker-src 'self' blob:",
               "frame-ancestors 'none'",
               "base-uri 'self'",
