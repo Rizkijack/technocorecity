@@ -60,8 +60,11 @@ export async function fetchRoom(
   since?: number,
   signal?: AbortSignal
 ): Promise<string> {
+  if (since !== undefined && !Number.isFinite(since)) {
+    throw new TypeError(`since must be finite number, got ${String(since)}`)
+  }
   let url = `${API_BASE}/r/${encodeURIComponent(name)}`
-  if (since !== undefined) url += `?since=${since}`
+  if (since !== undefined) url += `?since=${encodeURIComponent(String(since))}`
   return request(url, signal)
 }
 
@@ -74,13 +77,15 @@ export async function longPollRoom(
   since: number,
   signal: AbortSignal
 ): Promise<string> {
-  const url = `${API_BASE}/r/${encodeURIComponent(name)}?since=${since}&wait=10`
+  if (!Number.isFinite(since)) throw new TypeError(`since must be finite`)
+  const url = `${API_BASE}/r/${encodeURIComponent(name)}?since=${encodeURIComponent(String(since))}&wait=10`
   return request(url, signal)
 }
 
 /** `GET /r/events?since=<n>&wait=10` — long-poll new room creation. */
 export async function fetchEvents(since: number, signal?: AbortSignal): Promise<string> {
-  const url = `${API_BASE}/r/events?since=${since}&wait=10`
+  if (!Number.isFinite(since)) throw new TypeError(`since must be finite`)
+  const url = `${API_BASE}/r/events?since=${encodeURIComponent(String(since))}&wait=10`
   return request(url, signal)
 }
 

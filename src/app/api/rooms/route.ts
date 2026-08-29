@@ -16,10 +16,13 @@ export async function GET() {
     headers: { Accept: 'text/plain' },
   })
   const body = await res.text()
-  // Forward status + Retry-After for 429 so client can handle rate limit correctly.
+  // Hardcode safe headers — don't trust upstream cache poisoning.
+  if (body.length > 1_000_000) {
+    return new NextResponse('upstream response too large', { status: 502 })
+  }
   const headers: Record<string, string> = {
-    'Content-Type': res.headers.get('Content-Type') ?? 'text/plain; charset=utf-8',
-    'Cache-Control': res.headers.get('Cache-Control') ?? 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
   }
   const retryAfter = res.headers.get('retry-after')
   if (retryAfter) headers['retry-after'] = retryAfter
