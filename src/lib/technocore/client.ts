@@ -44,6 +44,8 @@ async function request(
   signal?: AbortSignal,
   proxyUrl?: string
 ): Promise<string> {
+  // eslint-disable-next-line no-console
+  console.log('[technocore] request', { url, hasProxy: !!proxyUrl })
   let res: Response
   try {
     res = await fetch(url, {
@@ -51,6 +53,8 @@ async function request(
       cache: 'no-store',
       headers: { accept: 'text/plain' },
     })
+    // eslint-disable-next-line no-console
+    console.log('[technocore] response', { url, status: res.status })
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw new AbortError()
@@ -58,8 +62,15 @@ async function request(
     if (proxyUrl && isNetworkBlocked(err)) {
       // Direct cross-origin fetch was refused by the browser. Retry through
       // the same-origin CORS proxy on this deploy.
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[technocore] direct fetch blocked, falling back to proxy',
+        { from: url, to: proxyUrl, err: (err as Error).message },
+      )
       return request(proxyUrl, signal, undefined)
     }
+    // eslint-disable-next-line no-console
+    console.error('[technocore] fetch failed', { url, err })
     throw err
   }
 
