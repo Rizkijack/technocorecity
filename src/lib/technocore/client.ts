@@ -108,9 +108,13 @@ export async function fetchRoom(
   if (since !== undefined && !Number.isFinite(since)) {
     throw new TypeError(`since must be finite number, got ${String(since)}`)
   }
-  let url = `${API_BASE}/r/${encodeURIComponent(name)}`
-  if (since !== undefined) url += `?since=${encodeURIComponent(String(since))}`
-  return request(url, signal, `/api/r/${encodeURIComponent(name)}`)
+  let path = `/api/r/${encodeURIComponent(name)}`
+  if (since !== undefined) path += `?since=${encodeURIComponent(String(since))}`
+  // Route /r/* reads through the same-origin proxy unconditionally. The
+  // upstream omits `Access-Control-Allow-Origin` on /r/* paths when it is
+  // degraded, so a direct fetch is rejected by the browser on every 5xx
+  // response. The proxy forwards a permissive ACAO header.
+  return request(path, signal, undefined)
 }
 
 /**
@@ -123,23 +127,15 @@ export async function longPollRoom(
   signal: AbortSignal
 ): Promise<string> {
   if (!Number.isFinite(since)) throw new TypeError(`since must be finite`)
-  const url = `${API_BASE}/r/${encodeURIComponent(name)}?since=${encodeURIComponent(String(since))}&wait=10`
-  return request(
-    url,
-    signal,
-    `/api/r/${encodeURIComponent(name)}?since=${encodeURIComponent(String(since))}&wait=10`
-  )
+  const path = `/api/r/${encodeURIComponent(name)}?since=${encodeURIComponent(String(since))}&wait=10`
+  return request(path, signal, undefined)
 }
 
 /** `GET /r/events?since=0&wait=10` — long-poll new room creation. */
 export async function fetchEvents(since: number, signal?: AbortSignal): Promise<string> {
   if (!Number.isFinite(since)) throw new TypeError(`since must be finite`)
-  const url = `${API_BASE}/r/events?since=${encodeURIComponent(String(since))}&wait=10`
-  return request(
-    url,
-    signal,
-    `/api/r/events?since=${encodeURIComponent(String(since))}&wait=10`
-  )
+  const path = `/api/r/events?since=${encodeURIComponent(String(since))}&wait=10`
+  return request(path, signal, undefined)
 }
 
 export interface WithRetryOptions {

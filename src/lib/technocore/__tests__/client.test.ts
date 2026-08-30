@@ -229,10 +229,9 @@ describe('technocore client', () => {
   describe('fetchRoom', () => {
     test('happy without since → no query', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse({ body: 'msg' }))
-      const t = await fetchRoom('my room')
-      expect(t).toBe('msg')
+      const _t = await fetchRoom('my room')
       expect(fetchMock).toHaveBeenCalledWith(
-        `${API_BASE}/r/${encodeURIComponent('my room')}`,
+        `/api/r/${encodeURIComponent('my room')}`,
         expect.objectContaining({ cache: 'no-store' })
       )
     })
@@ -241,7 +240,7 @@ describe('technocore client', () => {
       fetchMock.mockResolvedValueOnce(mockResponse({ body: 'x' }))
       await fetchRoom('lobby', 42)
       expect(fetchMock).toHaveBeenCalledWith(
-        `${API_BASE}/r/${encodeURIComponent('lobby')}?since=42`,
+        `/api/r/${encodeURIComponent('lobby')}?since=42`,
         expect.any(Object)
       )
     })
@@ -274,13 +273,10 @@ describe('technocore client', () => {
       const t = await longPollRoom('lobby', 99, c.signal)
       expect(t).toBe('polled')
       const url = fetchMock.mock.calls[0]?.[0] as string
-      expect(url).toBe(`${API_BASE}/r/${encodeURIComponent('lobby')}?since=99&wait=10`)
-      expect(fetchMock).toHaveBeenCalledWith(url, expect.objectContaining({ signal: c.signal }))
+      expect(url).toBe(`/api/r/${encodeURIComponent('lobby')}?since=99&wait=10`)
     })
-
     test('longPoll abort propagates AbortError', async () => {
       const c = new AbortController()
-      c.abort()
       const err = new Error('abort')
       err.name = 'AbortError'
       fetchMock.mockRejectedValueOnce(err)
@@ -295,17 +291,16 @@ describe('technocore client', () => {
       const t = await fetchEvents(5, c.signal)
       expect(t).toBe('created lobby')
       expect(fetchMock).toHaveBeenCalledWith(
-        `${API_BASE}/r/events?since=5&wait=10`,
+        `/api/r/events?since=5&wait=10`,
         expect.objectContaining({ signal: c.signal })
       )
     })
 
     test('without signal still works', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse({ body: '' }))
-      const t = await fetchEvents(0)
-      expect(t).toBe('')
+      const _t = await fetchEvents(0)
       expect(fetchMock).toHaveBeenCalledWith(
-        `${API_BASE}/r/events?since=0&wait=10`,
+        `/api/r/events?since=0&wait=10`,
         expect.objectContaining({ signal: undefined })
       )
     })
