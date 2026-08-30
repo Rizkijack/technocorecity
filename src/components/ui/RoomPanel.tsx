@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils/cn';
 import { truncate } from '@/lib/utils/format';
 import { useWorldStore } from '@/stores/world-store';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
-import { IconArrowLeft, IconClose, IconExternalLink } from './icons';
+import { IconClose, IconExternalLink } from './icons';
 import { MessageItem } from './MessageItem';
 
 export function RoomPanel() {
@@ -97,16 +97,6 @@ export function RoomPanel() {
         >
           {/* Header */}
           <header className="flex h-14 shrink-0 items-center justify-between border-b border-bg-light px-4">
-            <button
-              type="button"
-              onClick={() => selectRoom(null)}
-              className="mr-2 shrink-0 inline-flex items-center gap-1.5 rounded p-1.5 font-mono text-xs text-text-secondary transition-colors hover:bg-bg-elev hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-cyan"
-              aria-label="Back to map"
-              title="Back to map (Esc)"
-            >
-              <IconArrowLeft size={18} />
-              <span className="hidden sm:inline">Map</span>
-            </button>
             <h2
               className="min-w-0 flex-1 truncate font-mono text-sm font-semibold text-text-primary"
               title={room?.name ?? selectedRoomId ?? undefined}

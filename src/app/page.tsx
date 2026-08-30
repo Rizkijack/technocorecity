@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState } from 'react'
 
 import { AgentPopover } from '@/components/ui/AgentPopover'
+import { BackToMapButton } from '@/components/ui/BackToMapButton'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { Hud } from '@/components/ui/Hud'
 import { Legend } from '@/components/ui/Legend'
@@ -132,6 +133,7 @@ export default function Page() {
       <Hud />
       <Legend />
       <MobileNotice />
+      <BackToMapButton />
       <RoomPanel />
       <AgentPopover />
       <ErrorBanner />
