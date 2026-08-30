@@ -1,7 +1,8 @@
 # ADR 0003: Camera & Interaction — OrbitControls + Click-to-Focus + Fly-to
 
-**Status:** Accepted
+**Status:** Superseded (2026-08-31) — FREE VIEW
 **Date:** 2026-08-28
+**Superseded:** 2026-08-31 — FREE VIEW: OrbitControls bebas tanpa batas, hapus fly-to/autoRotate/minDistance/maxDistance/maxPolarAngle. Click Building tetap selectRoom tanpa kamera move. Camera initial tetap [0,30,50] fov 50. Rationale: user request free 360 orbit/pan/zoom + WASD pan. Implementation: `src/components/three/CameraRig.tsx` (FREE VIEW), `src/components/three/World.tsx` (camera unchanged).
 **Deciders:** Project maintainer
 
 ## Context

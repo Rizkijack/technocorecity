@@ -28,6 +28,7 @@ export function World() {
 
   return (
     <Canvas
+      // FREE VIEW: initial camera [0,30,50] fov 50 near 0.1 far 200 — OrbitControls bebas tanpa fly-to
       camera={{ position: [0, 30, 50], fov: 50, near: 0.1, far: 200 }}
       dpr={[1, 2]}
       shadows={false}
