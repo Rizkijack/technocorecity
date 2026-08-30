@@ -41,7 +41,7 @@ export function World() {
       {/* eslint-disable-next-line react/no-unknown-property */}
       <color attach="background" args={['#0a0e27']} />
       {/* eslint-disable-next-line react/no-unknown-property */}
-      <fog attach="fog" args={['#0a0e27', 30, 120]} />
+      <fog attach="fog" args={['#0a0e27', 50, 140]} />
 
       {/* lighting — per docs/07-design-language.md */}
       {/* eslint-disable-next-line react/no-unknown-property */}

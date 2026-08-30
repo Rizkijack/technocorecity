@@ -4,8 +4,14 @@ export type RoomPosition = readonly [number, number]
 
 /**
  * Place each room on the XZ plane in a circle around the origin.
- * Radius = max(20, roomCount * 3). Each room is evenly spaced:
- * angle = (i / roomCount) * 2π, x = cos(angle) * radius, z = sin(angle) * radius.
+ *
+ * Radius scales sub-linearly with room count so the circle stays within
+ * the camera's frustum and the fog plane (~120 units). With 50 rooms the
+ * naive `n * 3` formula would place them at radius 150 — well behind the
+ * fog — and the user would see an empty scene. Capping at 60 keeps the
+ * ring visible for any reasonable count.
+ *
+ * Each room is evenly spaced: angle = (i / n) * 2π.
  */
 export function computePositions(
   rooms: readonly Room[],
@@ -13,8 +19,9 @@ export function computePositions(
   const map = new Map<string, RoomPosition>()
   if (rooms.length === 0) return map
 
-  const radius = Math.max(20, rooms.length * 3)
   const n = rooms.length
+  // sqrt growth: 12 rooms -> 35, 50 rooms -> 50, 200 rooms -> 60 (capped)
+  const radius = Math.min(60, 10 + Math.sqrt(n) * 7)
 
   for (let i = 0; i < n; i++) {
     const room = rooms[i]!

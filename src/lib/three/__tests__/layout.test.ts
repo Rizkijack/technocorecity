@@ -13,24 +13,21 @@ describe('computePositions', () => {
     expect(map).toBeInstanceOf(Map)
   })
 
-  test('1 room radius 20 at (20,0)', () => {
+  test('1 room at radius 17 (min(60, 10+sqrt(1)*7)=17)', () => {
     const rooms = [makeRoom('a')]
     const map = computePositions(rooms)
     expect(map.size).toBe(1)
-    const pos = map.get('a')!
-    expect(pos).toBeDefined()
-    const [x, z] = pos
-    expect(x).toBeCloseTo(20, 5)
+    const [x, z] = map.get('a')!
+    expect(x).toBeCloseTo(17, 5)
     expect(z).toBeCloseTo(0, 5)
-    // distance from origin ≈20
-    expect(Math.hypot(x, z)).toBeCloseTo(20, 5)
+    expect(Math.hypot(x, z)).toBeCloseTo(17, 5)
   })
 
-  test('6 rooms radius max(20, n*3)=20, even spacing 60deg', () => {
+  test('6 rooms evenly spaced at 60deg', () => {
     const rooms = Array.from({ length: 6 }, (_, i) => makeRoom(`r${i}`))
     const map = computePositions(rooms)
     expect(map.size).toBe(6)
-    const radius = 20
+    const radius = 10 + Math.sqrt(6) * 7
     for (let i = 0; i < 6; i++) {
       const [x, z] = map.get(`r${i}`)!
       expect(Math.hypot(x, z)).toBeCloseTo(radius, 5)
@@ -40,68 +37,66 @@ describe('computePositions', () => {
     }
   })
 
-  test('2 rooms opposite', () => {
+  test('2 rooms opposite at radius 10+sqrt(2)*7', () => {
     const rooms = [makeRoom('a'), makeRoom('b')]
     const map = computePositions(rooms)
     const [ax, az] = map.get('a')!
     const [bx, bz] = map.get('b')!
-    expect(ax).toBeCloseTo(20, 5)
+    const radius = 10 + Math.sqrt(2) * 7
+    expect(ax).toBeCloseTo(radius, 5)
     expect(az).toBeCloseTo(0, 5)
-    expect(bx).toBeCloseTo(-20, 5)
-    expect(bz).toBeCloseTo(0, 5) // sin(pi) ≈0
+    expect(bx).toBeCloseTo(-radius, 5)
+    expect(bz).toBeCloseTo(0, 5)
   })
 
-  test('7 rooms radius 21 (7*3=21)', () => {
+  test('7 rooms evenly spaced', () => {
     const rooms = Array.from({ length: 7 }, (_, i) => makeRoom(`r${i}`))
     const map = computePositions(rooms)
-    const radius = 21
-    for (const [roomName, pos] of map) {
+    const radius = 10 + Math.sqrt(7) * 7
+    for (const pos of map.values()) {
       expect(Math.hypot(pos[0], pos[1])).toBeCloseTo(radius, 5)
-      void roomName
     }
   })
 
-  test('50 rooms radius 150 (50*3)', () => {
+  test('50 rooms capped at radius 60 (10+sqrt(50)*7≈59.5)', () => {
     const rooms = Array.from({ length: 50 }, (_, i) => makeRoom(`room-${i}`))
     const map = computePositions(rooms)
     expect(map.size).toBe(50)
-    const radius = 150
+    // 10 + sqrt(50)*7 = 10 + 49.497 ≈ 59.497 — well within cap of 60
+    const radius = 10 + Math.sqrt(50) * 7
     for (const pos of map.values()) {
       expect(Math.hypot(pos[0], pos[1])).toBeCloseTo(radius, 5)
     }
-    // verify spacing: angle between first and second = 360/50 =7.2deg
-    const [x0, z0] = map.get('room-0')!
-    const [x1, z1] = map.get('room-1')!
-    // angle check via dot product or direct
-    expect(x0).toBeCloseTo(radius, 5)
-    expect(z0).toBeCloseTo(0, 5)
-    const expectedAngle1 = (1 / 50) * Math.PI * 2
-    expect(x1).toBeCloseTo(Math.cos(expectedAngle1) * radius, 5)
-    expect(z1).toBeCloseTo(Math.sin(expectedAngle1) * radius, 5)
   })
 
-  test('10 rooms radius 30', () => {
+  test('200 rooms also cap at 60', () => {
+    const rooms = Array.from({ length: 200 }, (_, i) => makeRoom(`r${i}`))
+    const map = computePositions(rooms)
+    expect(map.size).toBe(200)
+    // 10 + sqrt(200)*7 = 10 + 98.99 = 108.99 → cap at 60
+    for (const pos of map.values()) {
+      expect(Math.hypot(pos[0], pos[1])).toBeCloseTo(60, 5)
+    }
+  })
+
+  test('10 rooms at radius 10+sqrt(10)*7≈32.1', () => {
     const rooms = Array.from({ length: 10 }, (_, i) => makeRoom(`r${i}`))
     const map = computePositions(rooms)
-    const radius = 30
+    const radius = 10 + Math.sqrt(10) * 7
     for (const pos of map.values()) {
       expect(Math.hypot(pos[0], pos[1])).toBeCloseTo(radius, 5)
     }
   })
 
-  test('radius formula max(20, n*3)', () => {
+  test('radius formula min(60, 10+sqrt(n)*7)', () => {
     const cases: Array<[number, number]> = [
-      [0, 20], // not used but 0 length returns early; for n>=1 test
-      [1, 20],
-      [5, 20],
-      [6, 20],
-      [7, 21],
-      [10, 30],
-      [20, 60],
-      [50, 150],
+      [1, 17],
+      [5, 10 + Math.sqrt(5) * 7],
+      [10, 10 + Math.sqrt(10) * 7],
+      [50, 10 + Math.sqrt(50) * 7],
+      [200, 60], // cap
     ]
     for (const [n, expectedRadius] of cases) {
-      if (n === 0) continue
       const rooms = Array.from({ length: n }, (_, i) => makeRoom(`c${n}-${i}`))
       const map = computePositions(rooms)
       const anyPos = map.values().next().value as readonly [number, number]
