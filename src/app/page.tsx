@@ -66,11 +66,17 @@ export default function Page() {
   // Background: derive an agent directory from the busiest rooms' recent
   // messages. Without this, <World> sees an empty agents Map and renders
   // no points.
+  const lastScannedKeyRef = useRef<string | null>(null)
   useEffect(() => {
     if (!rooms || rooms.length === 0) return
     const top = [...rooms]
       .sort((a, b) => b.messageCount - a.messageCount)
       .slice(0, TOP_ROOMS_FOR_AGENTS)
+    // Dedupe: SWR may return a new array instance with same content on
+    // revalidation (e.g. revalidateOnFocus). Skip rescan if top 12 are identical.
+    const key = top.map((r) => `${r.name}:${r.messageCount}`).join('|')
+    if (lastScannedKeyRef.current === key) return
+    lastScannedKeyRef.current = key
     let cancelled = false
     let loaded = 0
     setAgentProgress({ loaded: 0, total: top.length })
@@ -112,13 +118,13 @@ export default function Page() {
     }
   }, [rooms, mergeAgents])
 
-  const veilVisible = isLoading || agentProgress !== null
-  const veilLabel = isLoading
-    ? 'Loading rooms…'
-    : agentProgress
-      ? `Loading ${agentProgress.loaded} of ${agentProgress.total} rooms…`
-      : ''
-  const veilProgress = isLoading ? roomsProgress : agentProgress ?? undefined
+  // Only block the 3D view while rooms are loading. Agent scanning is
+  // non-critical and runs in background — show it as a tiny bottom bar
+  // instead of a full-screen veil, otherwise buildings stay hidden behind
+  // the veil for >60s while 12 rooms are fetched (user report: 1m scan).
+  const veilVisible = isLoading
+  const veilLabel = 'Loading rooms…'
+  const veilProgress = roomsProgress
 
   return (
     <main className="relative h-screen w-screen overflow-hidden bg-bg-deep">
@@ -133,10 +139,21 @@ export default function Page() {
       {veilVisible ? (
         <LoadingVeil isVisible label={veilLabel} progress={veilProgress} />
       ) : null}
+      {agentProgress ? (
+        <div className="pointer-events-none fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-full border border-bg-light bg-bg-mid px-4 py-2 text-xs text-text-secondary shadow-panel-elev">
+          Scanning agents {agentProgress.loaded}/{agentProgress.total}…
+        </div>
+      ) : null}
       {error ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
-          <div className="rounded-md border border-red-500/40 bg-red-950/80 px-4 py-2 text-sm text-red-200">
-            Failed to load rooms. Retrying…
+        <div
+          className="pointer-events-auto fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
+          data-testid="rooms-error"
+        >
+          <div className="max-w-xl rounded-md border border-red-500/40 bg-red-950/80 px-4 py-2 text-sm text-red-200">
+            <div className="font-mono font-semibold">Failed to load rooms</div>
+            <div className="mt-1 break-words font-mono text-xs text-red-300/90">
+              {error.name}: {error.message}
+            </div>
           </div>
         </div>
       ) : null}
