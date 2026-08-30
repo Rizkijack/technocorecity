@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 
+// Edge runtime: long-poll `wait=10` would hit the 10s Node-serverless
+// timeout on Vercel Hobby. Edge has no such limit.
+export const runtime = 'edge'
+export const dynamic = 'force-dynamic'
+
 const DEFAULT_BASE = 'https://technocore.chat'
 
 function apiBase(): string {

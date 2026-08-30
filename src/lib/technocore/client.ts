@@ -44,8 +44,6 @@ async function request(
   signal?: AbortSignal,
   proxyUrl?: string
 ): Promise<string> {
-  // eslint-disable-next-line no-console
-  console.log('[technocore] request', { url, hasProxy: !!proxyUrl })
   let res: Response
   try {
     res = await fetch(url, {
@@ -53,8 +51,6 @@ async function request(
       cache: 'no-store',
       headers: { accept: 'text/plain' },
     })
-    // eslint-disable-next-line no-console
-    console.log('[technocore] response', { url, status: res.status })
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw new AbortError()
@@ -135,7 +131,7 @@ export async function longPollRoom(
   )
 }
 
-/** `GET /r/events?since=<n>&wait=10` — long-poll new room creation. */
+/** `GET /r/events?since=0&wait=10` — long-poll new room creation. */
 export async function fetchEvents(since: number, signal?: AbortSignal): Promise<string> {
   if (!Number.isFinite(since)) throw new TypeError(`since must be finite`)
   const url = `${API_BASE}/r/events?since=${encodeURIComponent(String(since))}&wait=10`

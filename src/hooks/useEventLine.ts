@@ -8,8 +8,8 @@ import { RateLimitError } from '@/lib/technocore/errors'
 import type { EventLine } from '@/lib/technocore/types'
 import { useUiStore } from '@/stores/ui-store'
 
-const POLL_INTERVAL_MS = 1000
-const ERROR_BACKOFF_MS = 2000
+const POLL_INTERVAL_MS = 5000
+const ERROR_BACKOFF_MS = 5000
 const EVENT_CAP = 200
 
 let lastShownAt = 0

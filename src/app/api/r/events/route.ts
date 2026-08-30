@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 
+// Edge runtime: no 10s function timeout (Hobby limit on Node), so the
+// upstream long-poll `wait=10` can complete. Also cheaper to start.
+export const runtime = 'edge'
+export const dynamic = 'force-dynamic'
+
 const DEFAULT_BASE = 'https://technocore.chat'
 
 function apiBase(): string {
