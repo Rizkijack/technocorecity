@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config'
 import path from 'node:path'
 
 export default defineConfig({
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
     environment: 'node',
     include: ['src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
@@ -11,6 +14,7 @@ export default defineConfig({
     environmentMatchGlobs: [
       ['src/hooks/**', 'jsdom'],
       ['**/throttle*', 'jsdom'],
+      ['src/components/three/__tests__/**', 'jsdom'],
     ],
     pool: 'forks',
     poolOptions: {
