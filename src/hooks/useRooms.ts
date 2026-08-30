@@ -43,9 +43,9 @@ export function useRooms(): UseRoomsResult {
       }
     },
     {
-      dedupingInterval: 5000,
-      revalidateOnFocus: true,
-      revalidateOnReconnect: true,
+      dedupingInterval: 30_000,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
       refreshInterval: 0,
     },
   )
