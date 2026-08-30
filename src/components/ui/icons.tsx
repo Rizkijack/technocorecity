@@ -95,6 +95,19 @@ export const IconChevronRight: FC<IconProps> = ({ className, size = 24 }) => (
   </svg>
 );
 
+export const IconArrowLeft: FC<IconProps> = ({ className, size = 24 }) => (
+  <svg
+    width={size}
+    height={size}
+    {...base}
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M19 12H5" />
+    <path d="M12 19l-7-7 7-7" />
+  </svg>
+);
+
 export const IconEye: FC<IconProps> = ({ className, size = 24 }) => (
   <svg
     width={size}
@@ -129,5 +142,6 @@ export const InfoIcon = IconInfo;
 export const SpinnerIcon = IconSpinner;
 export const LoadingIcon = IconLoading;
 export const ChevronRightIcon = IconChevronRight;
+export const ArrowLeftIcon = IconArrowLeft;
 export const EyeIcon = IconEye;
 export const SearchIcon = IconSearch;
