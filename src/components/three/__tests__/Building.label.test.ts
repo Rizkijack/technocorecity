@@ -76,3 +76,27 @@ describe('Building module — label regression guards', () => {
     expect(exportNames).toContain('makeLabelTexture')
   })
 })
+
+describe('Building module — ghost (empty) building guards', () => {
+  it('label badge has both variants: "N msgs" (active) and "empty" (ghost)', () => {
+    // Active rooms keep the compact message-count badge…
+    expect(buildingSource).toMatch(/formatNumber\(room\.messageCount\)/)
+    // …while ghost rooms (< MIN_MESSAGES_FOR_LOADING) show a literal "empty" badge.
+    expect(buildingSource).toMatch(/ghost \? 'empty'/)
+  })
+
+  it('ghost buildings suppress floor bands and window planes', () => {
+    // An empty building has no floors to segment and no lit windows.
+    expect(buildingSource).toMatch(/!ghost &&\s*bandYs\.map/)
+    expect(buildingSource).toMatch(/!ghost &&\s*windowYs\.map/)
+  })
+
+  it('ghost buildings use a dark silhouette with zero glow', () => {
+    // Dim slate edges (not cyan) — silhouette readable but cold.
+    expect(buildingSource).toMatch(/#3f5f96/)
+    // No emissive glow on body or antenna, and no selected point light.
+    expect(buildingSource).toMatch(/ghost \? 0 : emissiveIntensity/)
+    expect(buildingSource).toMatch(/ghost \? 0 : isSelected \? 0\.6 : 0\.22/)
+    expect(buildingSource).toMatch(/isSelected && !ghost/)
+  })
+})

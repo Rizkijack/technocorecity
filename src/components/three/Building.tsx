@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Room } from '@/lib/technocore/types'
+import { isEmptyRoom } from '@/lib/technocore/intake'
 import { useWorldStore } from '@/stores/world-store'
 import { formatNumber, formatRoomName, truncate } from '@/lib/utils/format'
 import {
@@ -31,6 +32,9 @@ import {
  *  - r/<name> mono 12px bold #e8eaf6 + halo #0a0e27
  *  - topic truncated 24 sans 9px #a0a8c8 (if any)
  *  - badge "x msgs" compact via formatNumber, bg #1c2347 rounded
+ *  - ghost rooms (messageCount < MIN_MESSAGES_FOR_LOADING): name dimmed
+ *    #8ea3c8, topic #5b7296, badge "empty" on dark pill #111a3d — no cyan
+ *    accents; hover/selected only brightens the name to #a8bce0
  *  - hover: scale 1.1 + text-accent-cyan, selected: scale 1.15 + brighter halo
  *
  * CanvasTexture is rebuilt only when room data or hover/selected changes;
@@ -102,12 +106,20 @@ export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTex
   return tex
 }
 
-// Solid 3-line label: r/name + topic (24ch) + messageCount badge
-// Billboard via Sprite + Html transform occlude={false} distanceFactor={12} equivalent
-export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: boolean): THREE.CanvasTexture {
+// Solid 3-line label: r/name + topic (24ch) + status badge.
+// Billboard via Sprite + Html transform occlude={false} distanceFactor={12} equivalent.
+// Active rooms: badge "N msgs" (formatNumber) on #1c2347.
+// Ghost rooms (messageCount < MIN_MESSAGES_FOR_LOADING): badge "empty" on
+// #111a3d, dimmed name #8ea3c8 / topic #5b7296 — no cyan anywhere.
+export function makeSolidLabelTexture(
+  room: Room,
+  hovered: boolean,
+  isSelected: boolean,
+): THREE.CanvasTexture {
+  const ghost = isEmptyRoom(room)
   const hasTopic = typeof room.topic === 'string' && room.topic.trim().length > 0
   const topicTrunc = hasTopic ? truncate(room.topic.trim(), 24) : ''
-  const badgeText = `${formatNumber(room.messageCount)} msgs`
+  const badgeText = ghost ? 'empty' : `${formatNumber(room.messageCount)} msgs`
 
   const PAD_X = 10
   const PAD_Y = 7
@@ -157,7 +169,12 @@ export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: 
   ctx.arcTo(0, h, 0, 0, r)
   ctx.arcTo(0, 0, w, 0, r)
   ctx.closePath()
-  if (isSelected) {
+  if (ghost) {
+    // ghost labels never glow cyan — neutral dark pill with black halo
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.84)'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)'
+    ctx.shadowBlur = 8
+  } else if (isSelected) {
     ctx.fillStyle = 'rgba(0, 212, 255, 0.96)'
     ctx.shadowColor = 'rgba(0, 212, 255, 0.6)'
     ctx.shadowBlur = 16
@@ -172,7 +189,17 @@ export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: 
   }
   ctx.fill()
   ctx.shadowBlur = 0
-  ctx.strokeStyle = isSelected ? 'rgba(0,212,255,1)' : hovered ? 'rgba(0,212,255,0.5)' : 'rgba(255,255,255,0.14)'
+  ctx.strokeStyle = ghost
+    ? isSelected
+      ? 'rgba(168,188,224,0.45)'
+      : hovered
+        ? 'rgba(168,188,224,0.28)'
+        : 'rgba(255,255,255,0.14)'
+    : isSelected
+      ? 'rgba(0,212,255,1)'
+      : hovered
+        ? 'rgba(0,212,255,0.5)'
+        : 'rgba(255,255,255,0.14)'
   ctx.lineWidth = 1
   ctx.stroke()
 
@@ -195,7 +222,13 @@ export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: 
   ctx.strokeText('r/', nameStartX, nameY)
   ctx.strokeText(room.name, nameStartX + prefixW, nameY)
   // fill
-  if (isSelected) {
+  if (ghost) {
+    // ghost: dimmed slate name, slightly brighter on hover/selected — never cyan
+    ctx.fillStyle = 'rgba(142,163,200,0.5)'
+    ctx.fillText('r/', nameStartX, nameY)
+    ctx.fillStyle = hovered || isSelected ? '#a8bce0' : '#8ea3c8'
+    ctx.fillText(room.name, nameStartX + prefixW, nameY)
+  } else if (isSelected) {
     ctx.fillStyle = 'rgba(10,14,39,0.55)'
     ctx.fillText('r/', nameStartX, nameY)
     ctx.fillStyle = '#0a0e27'
@@ -223,7 +256,7 @@ export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: 
     ctx.strokeStyle = '#0a0e27'
     ctx.lineWidth = 2.5
     ctx.strokeText(topicTrunc, cx, y)
-    ctx.fillStyle = hovered ? '#c8d0f0' : '#a0a8c8'
+    ctx.fillStyle = ghost ? '#5b7296' : hovered ? '#c8d0f0' : '#a0a8c8'
     ctx.fillText(topicTrunc, cx, y)
     y += TOPIC_H / 2 + GAP
   } else {
@@ -243,16 +276,28 @@ export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: 
   ctx.arcTo(badgeX, badgeY + BADGE_H, badgeX, badgeY, br)
   ctx.arcTo(badgeX, badgeY, badgeX + badgePillW, badgeY, br)
   ctx.closePath()
-  ctx.fillStyle = isSelected ? 'rgba(28,35,71,1)' : 'rgba(28,35,71,0.96)'
+  ctx.fillStyle = ghost
+    ? isSelected
+      ? 'rgba(17,26,61,1)'
+      : 'rgba(17,26,61,0.96)'
+    : isSelected
+      ? 'rgba(28,35,71,1)'
+      : 'rgba(28,35,71,0.96)'
   ctx.fill()
-  ctx.strokeStyle = isSelected ? 'rgba(0,212,255,0.45)' : 'rgba(255,255,255,0.10)'
+  ctx.strokeStyle = ghost
+    ? isSelected
+      ? 'rgba(91,114,150,0.45)'
+      : 'rgba(255,255,255,0.10)'
+    : isSelected
+      ? 'rgba(0,212,255,0.45)'
+      : 'rgba(255,255,255,0.10)'
   ctx.lineWidth = 1
   ctx.stroke()
   ctx.font = '600 9px ui-monospace, "JetBrains Mono", Menlo, monospace'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   // badge text halo #0a0e27 already via pill contrast
-  ctx.fillStyle = '#e8eaf6'
+  ctx.fillStyle = ghost ? '#5b7296' : '#e8eaf6'
   ctx.fillText(badgeText, cx, y)
 
   const tex = new THREE.CanvasTexture(canvas)
@@ -275,6 +320,14 @@ function sharedBuildingGeometry(w: number, h: number, d: number): THREE.BoxGeome
   return geo
 }
 
+// Ghost (empty building) rooftop — dark slate, no glow. Deliberately separate
+// from shared rooftopMaterialInst in lib/three/materials.ts (never mutated).
+const ghostRooftopMaterial = new THREE.MeshStandardMaterial({
+  color: '#121a3a',
+  roughness: 0.55,
+  metalness: 0.35,
+})
+
 interface BuildingProps {
   room: Room
   position: [number, number, number]
@@ -294,6 +347,10 @@ export function Building({ room, position, index: _index }: BuildingProps) {
   const selectedRoomId = useWorldStore((s) => s.selectedRoomId)
   const isSelected = selectedRoomId === room.name
   const [hovered, setHovered] = useState(false)
+
+  // Ghost buildings: rooms below MIN_MESSAGES_FOR_LOADING — dark silhouette,
+  // no windows / floor bands / glow, label badge "empty".
+  const ghost = useMemo(() => isEmptyRoom(room), [room])
 
   const newAt = useWorldStore((s) => s.newlyCreatedAt.get(room.name))
 
@@ -423,65 +480,80 @@ export function Building({ room, position, index: _index }: BuildingProps) {
         <primitive object={sharedBuildingGeometry(width, height, depth)} attach="geometry" />
         {/* eslint-disable-next-line react/no-unknown-property */}
         <meshStandardMaterial
-          color="#1c2347"
+          color={ghost ? '#0e1535' : '#1c2347'}
           emissive="#00d4ff"
-          emissiveIntensity={emissiveIntensity}
-          roughness={0.4}
-          metalness={0.6}
+          emissiveIntensity={ghost ? 0 : emissiveIntensity}
+          roughness={ghost ? 0.55 : 0.4}
+          metalness={ghost ? 0.35 : 0.6}
         />
       </mesh>
 
-      {/* bevel / edge highlight */}
+      {/* bevel / edge highlight — ghost: dim slate silhouette, never cyan */}
       {/* eslint-disable-next-line react/no-unknown-property */}
       <lineSegments position={[0, buildingY, 0]} geometry={edgesGeometry}>
         {/* eslint-disable-next-line react/no-unknown-property */}
         <lineBasicMaterial
-          color="#00d4ff"
+          color={ghost ? '#3f5f96' : '#00d4ff'}
           transparent
-          opacity={isSelected ? 0.24 : hovered ? 0.2 : 0.08}
+          opacity={
+            ghost
+              ? isSelected
+                ? 0.35
+                : hovered
+                  ? 0.3
+                  : 0.18
+              : isSelected
+                ? 0.24
+                : hovered
+                  ? 0.2
+                  : 0.08
+          }
         />
       </lineSegments>
 
-      {/* horizontal floor bands */}
-      {bandYs.map((y) => (
-        // eslint-disable-next-line react/no-unknown-property
-        <mesh
-          key={`band-${y.toFixed(1)}`}
-          position={[0, y, 0]}
-          geometry={floorBandGeometryFor(width, depth)}
-          material={floorBandMaterialInst}
-          castShadow
-          receiveShadow
-        />
-      ))}
+      {/* horizontal floor bands — skipped on ghost buildings */}
+      {!ghost &&
+        bandYs.map((y) => (
+          // eslint-disable-next-line react/no-unknown-property
+          <mesh
+            key={`band-${y.toFixed(1)}`}
+            position={[0, y, 0]}
+            geometry={floorBandGeometryFor(width, depth)}
+            material={floorBandMaterialInst}
+            castShadow
+            receiveShadow
+          />
+        ))}
 
-      {/* window planes — front (+z) and side (+x) */}
-      {windowYs.map((y) => (
-        // eslint-disable-next-line react/no-unknown-property
-        <mesh
-          key={`wf-${y.toFixed(1)}`}
-          position={[0, y, depth / 2 + 0.016]}
-          geometry={sharedWindowGeometry}
-          material={windowMaterialInst}
-        />
-      ))}
-      {windowYs.map((y) => (
-        // eslint-disable-next-line react/no-unknown-property
-        <mesh
-          key={`ws-${y.toFixed(1)}`}
-          position={[width / 2 + 0.016, y, 0]}
-          rotation={[0, Math.PI / 2, 0]}
-          geometry={sharedWindowGeometry}
-          material={windowMaterialInst}
-        />
-      ))}
+      {/* window planes — front (+z) and side (+x); skipped on ghost buildings */}
+      {!ghost &&
+        windowYs.map((y) => (
+          // eslint-disable-next-line react/no-unknown-property
+          <mesh
+            key={`wf-${y.toFixed(1)}`}
+            position={[0, y, depth / 2 + 0.016]}
+            geometry={sharedWindowGeometry}
+            material={windowMaterialInst}
+          />
+        ))}
+      {!ghost &&
+        windowYs.map((y) => (
+          // eslint-disable-next-line react/no-unknown-property
+          <mesh
+            key={`ws-${y.toFixed(1)}`}
+            position={[width / 2 + 0.016, y, 0]}
+            rotation={[0, Math.PI / 2, 0]}
+            geometry={sharedWindowGeometry}
+            material={windowMaterialInst}
+          />
+        ))}
 
-      {/* rooftop */}
+      {/* rooftop — ghost variant is a dark unlit slab */}
       {/* eslint-disable-next-line react/no-unknown-property */}
       <mesh
         position={[0, rooftopY, 0]}
         geometry={rooftopGeometryFor(width, depth)}
-        material={rooftopMaterialInst}
+        material={ghost ? ghostRooftopMaterial : rooftopMaterialInst}
         castShadow
         receiveShadow
       />
@@ -490,25 +562,32 @@ export function Building({ room, position, index: _index }: BuildingProps) {
       <mesh position={[0, antennaY, 0]} geometry={sharedAntennaGeometry} castShadow>
         {/* eslint-disable-next-line react/no-unknown-property */}
         <meshStandardMaterial
-          color="#2a3160"
+          color={ghost ? '#1a2148' : '#2a3160'}
           emissive="#00d4ff"
-          emissiveIntensity={isSelected ? 0.6 : 0.22}
+          emissiveIntensity={ghost ? 0 : isSelected ? 0.6 : 0.22}
           roughness={0.4}
           metalness={0.55}
         />
       </mesh>
 
-      {/* selected glow — stronger */}
-      {isSelected ? (
+      {/* selected glow — stronger; skipped on ghost buildings (no glow at all) */}
+      {isSelected && !ghost ? (
         // eslint-disable-next-line react/no-unknown-property
-        <pointLight position={[0, rooftopY + 1.2, 0]} intensity={1.25} distance={16} color="#00d4ff" decay={2} />
+        <pointLight
+          position={[0, rooftopY + 1.2, 0]}
+          intensity={1.25}
+          distance={16}
+          color="#00d4ff"
+          decay={2}
+        />
       ) : null}
 
       {/* Billboard room label — Sprite is native Billboard (always faces camera).
           Html alternative would be <Billboard><Html transform occlude={false} distanceFactor={12}>…</Html></Billboard>
           but Sprite avoids DOM layer issues under PointerLockControls, cheaper for 50 buildings,
           and sizeAttenuation={false} + fog={false} keeps it SOLID in FREE VIEW (orbit/pan/zoom, fog 50,140, camera [0,30,50]).
-          Uses makeSolidLabelTexture (r/name mono 12px bold #e8eaf6 halo #0a0e27, topic sans 9px truncated 24, badge #1c2347).
+          Uses makeSolidLabelTexture (r/name mono 12px bold #e8eaf6 halo #0a0e27, topic sans 9px truncated 24, badge #1c2347;
+          ghost rooms with <5 messages get a dim "empty" badge variant — no cyan).
           Hover 1.1 cyan text, selected 1.15 brighter halo — no geometry per frame. */}
       <sprite position={[0, labelY, 0]} scale={[labelScale.x, labelScale.y, 1]}>
         <spriteMaterial

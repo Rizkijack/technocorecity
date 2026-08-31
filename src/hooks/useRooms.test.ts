@@ -5,7 +5,7 @@ vi.mock('@/lib/technocore/client', () => ({ fetchRooms: vi.fn() }))
 import { parseRooms } from '@/lib/technocore/adapter'
 import { fetchRooms } from '@/lib/technocore/client'
 import { ParseError } from '@/lib/technocore/errors'
-import { filterLoadableRooms, ROOMS_LIMIT } from '@/lib/technocore/intake'
+import { ROOMS_LIMIT } from '@/lib/technocore/intake'
 import type { Room } from '@/lib/technocore/types'
 import { useWorldStore } from '@/stores/world-store'
 
@@ -17,14 +17,12 @@ const resolveRoomsOnce = (payload: unknown): void => {
   fetchRoomsMock.mockResolvedValueOnce(payload as string)
 }
 
-// beta has 3 messages (< MIN_MESSAGES_FOR_LOADING) and must be dropped by the
-// hook's intake filter; alpha (5) is the only loadable room.
+// beta has 3 messages (< MIN_MESSAGES_FOR_LOADING) and is KEPT by intake —
+// the scene renders it as a ghost (empty) building; alpha (5) is a lit building.
 const SAMPLE_ROOMS: Room[] = [
   { name: 'alpha', topic: 'Alpha topic', messageCount: 5, sizeBytes: 1229, idleSeconds: 0 },
   { name: 'beta', topic: 'Beta topic', messageCount: 3, sizeBytes: 640, idleSeconds: 120 },
 ]
-
-const LOADABLE_ONLY = [SAMPLE_ROOMS[0]!]
 
 const SAMPLE_TABLE = [
   '| /r/alpha | Alpha topic | 5 | 1.2k | 0s | read-write |',
@@ -32,14 +30,15 @@ const SAMPLE_TABLE = [
 ].join('\n')
 
 // Mirror of the inline SWR fetcher in useRooms (branch-for-branch), so the
-// coercion/parse/filter logic is exercised without SWR's network infrastructure.
+// coercion/parse logic is exercised without SWR's network infrastructure.
+// Intake keeps EVERY room — <5-message rooms become ghost buildings in the city.
 async function fetcher(): Promise<Room[]> {
   const raw = (await fetchRooms(ROOMS_LIMIT)) as unknown
   let parsed: Room[]
   if (Array.isArray(raw)) parsed = raw as Room[]
   else if (typeof raw === 'string') parsed = parseRooms(raw)
   else parsed = parseRooms(String(raw))
-  return filterLoadableRooms(parsed)
+  return parsed
 }
 
 describe('useRooms fetcher', () => {
@@ -62,32 +61,29 @@ describe('useRooms fetcher', () => {
     expect(fetchRoomsMock).toHaveBeenCalledWith(ROOMS_LIMIT)
   })
 
-  it('filters a pre-parsed array down to loadable rooms', async () => {
+  it('keeps every room from a pre-parsed array (ghost rooms included)', async () => {
     resolveRoomsOnce(SAMPLE_ROOMS)
-    await expect(fetcher()).resolves.toEqual(LOADABLE_ONLY)
+    await expect(fetcher()).resolves.toEqual(SAMPLE_ROOMS)
   })
 
-  it('parses a raw table string via parseRooms, then filters', async () => {
+  it('parses a raw table string via parseRooms and keeps every room', async () => {
     resolveRoomsOnce(SAMPLE_TABLE)
-    await expect(fetcher()).resolves.toEqual(LOADABLE_ONLY)
+    await expect(fetcher()).resolves.toEqual(SAMPLE_ROOMS)
   })
 
   it('coerces other values with String()', async () => {
     resolveRoomsOnce(Object.assign(Object.create({}), { toString: () => SAMPLE_TABLE }))
-    await expect(fetcher()).resolves.toEqual(LOADABLE_ONLY)
+    await expect(fetcher()).resolves.toEqual(SAMPLE_ROOMS)
   })
 
-  it('drops rooms below MIN_MESSAGES_FOR_LOADING and keeps the rest', async () => {
+  it('keeps rooms below MIN_MESSAGES_FOR_LOADING alongside the rest', async () => {
     const mixed: Room[] = [
-      ...LOADABLE_ONLY,
+      ...SAMPLE_ROOMS,
       { name: 'quiet', topic: '', messageCount: 4, sizeBytes: 10, idleSeconds: 1 },
       { name: 'busy', topic: '', messageCount: 1000, sizeBytes: 10, idleSeconds: 1 },
     ]
     resolveRoomsOnce(mixed)
-    await expect(fetcher()).resolves.toEqual([
-      LOADABLE_ONLY[0]!,
-      { name: 'busy', topic: '', messageCount: 1000, sizeBytes: 10, idleSeconds: 1 },
-    ])
+    await expect(fetcher()).resolves.toEqual(mixed)
   })
 
   it('propagates ParseError for unparseable responses', async () => {
@@ -114,11 +110,12 @@ describe('useRooms world-store mirror', () => {
     })
   })
 
-  it('mirrors fetched rooms into the world store', () => {
+  it('mirrors fetched rooms into the world store — ghost rooms included', () => {
     useWorldStore.getState().setRooms(SAMPLE_ROOMS)
     const state = useWorldStore.getState()
     expect(state.rooms.size).toBe(2)
     expect(state.rooms.get('alpha')?.topic).toBe('Alpha topic')
+    expect(state.rooms.get('beta')?.messageCount).toBe(3)
     expect(state.lastUpdate).toBeGreaterThan(0)
   })
 
@@ -132,13 +129,14 @@ describe('useRooms world-store mirror', () => {
     expect(state.rooms.get('beta')).toBeUndefined()
   })
 
-  it('end-to-end: fetch → parse → filter → world store', async () => {
+  it('end-to-end: fetch → parse → world store, no filtering', async () => {
     resolveRoomsOnce(SAMPLE_TABLE)
     const data = await fetcher()
     useWorldStore.getState().setRooms(data)
-    expect(data).toEqual(LOADABLE_ONLY)
+    expect(data).toEqual(SAMPLE_ROOMS)
     const state = useWorldStore.getState()
     expect(state.rooms.get('alpha')?.sizeBytes).toBe(1229)
-    expect(state.rooms.get('beta')).toBeUndefined()
+    expect(state.rooms.get('beta')?.messageCount).toBe(3)
+    expect(state.rooms.size).toBe(2)
   })
 })

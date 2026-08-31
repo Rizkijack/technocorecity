@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  filterLoadableRooms,
-  matchesRoomQuery,
-  MIN_MESSAGES_FOR_LOADING,
-  ROOMS_LIMIT,
-} from '../intake'
+import { isEmptyRoom, matchesRoomQuery, MIN_MESSAGES_FOR_LOADING, ROOMS_LIMIT } from '../intake'
 import type { Room } from '../types'
 
 function makeRoom(name: string, messageCount: number, topic = ''): Room {
@@ -19,36 +14,35 @@ describe('intake constants', () => {
   })
 })
 
-describe('filterLoadableRooms', () => {
-  it('drops rooms below MIN_MESSAGES_FOR_LOADING, keeps boundary and above', () => {
+describe('isEmptyRoom', () => {
+  it('is true below MIN_MESSAGES_FOR_LOADING (boundary: 0, 1, 4)', () => {
+    expect(isEmptyRoom(makeRoom('muted', 0))).toBe(true)
+    expect(isEmptyRoom(makeRoom('quiet', 1))).toBe(true)
+    expect(isEmptyRoom(makeRoom('almost', 4))).toBe(true)
+  })
+
+  it('is false at and above MIN_MESSAGES_FOR_LOADING (boundary: 5, 6, 1000)', () => {
+    expect(isEmptyRoom(makeRoom('border', 5))).toBe(false)
+    expect(isEmptyRoom(makeRoom('six', 6))).toBe(false)
+    expect(isEmptyRoom(makeRoom('busy', 1000))).toBe(false)
+  })
+
+  it('classifies each room independently in a mixed list', () => {
     const rooms = [
       makeRoom('muted', 0),
       makeRoom('quiet', 4),
       makeRoom('border', 5),
       makeRoom('busy', 1000),
     ]
-    const result = filterLoadableRooms(rooms)
-    expect(result.map((r) => r.name)).toEqual(['border', 'busy'])
+    expect(rooms.map(isEmptyRoom)).toEqual([true, true, false, false])
   })
 
-  it('returns a new array and never mutates the input', () => {
-    const rooms = [makeRoom('a', 1), makeRoom('b', 5)]
-    const result = filterLoadableRooms(rooms)
-    expect(result).not.toBe(rooms)
-    expect(rooms).toHaveLength(2)
-    expect(result).toHaveLength(1)
-    expect(rooms[0]?.messageCount).toBe(1)
-  })
-
-  it('passes unusual names through exactly as parsed', () => {
-    const rooms = [makeRoom('UPPER_CASE', 9), makeRoom('with space!', 12)]
-    const result = filterLoadableRooms(rooms)
-    expect(result.map((r) => r.name)).toEqual(['UPPER_CASE', 'with space!'])
-    expect(result[0]?.name).toBe('UPPER_CASE')
-  })
-
-  it('handles an empty list', () => {
-    expect(filterLoadableRooms([])).toEqual([])
+  it('is a pure predicate — never mutates the room', () => {
+    const room = makeRoom('quiet', 3, 'still here')
+    const result = isEmptyRoom(room)
+    expect(result).toBe(true)
+    expect(room.messageCount).toBe(3)
+    expect(room.topic).toBe('still here')
   })
 })
 

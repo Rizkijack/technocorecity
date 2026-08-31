@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import { parseRooms } from '@/lib/technocore/adapter'
 import { fetchRooms } from '@/lib/technocore/client'
 import { RateLimitError } from '@/lib/technocore/errors'
-import { filterLoadableRooms, ROOMS_LIMIT } from '@/lib/technocore/intake'
+import { ROOMS_LIMIT } from '@/lib/technocore/intake'
 import type { Room } from '@/lib/technocore/types'
 import { useUiStore } from '@/stores/ui-store'
 import { useWorldStore } from '@/stores/world-store'
@@ -24,9 +24,9 @@ export interface UseRoomsResult {
  * SWR-backed room list.
  * - key ['rooms']
  * - fetcher requests ROOMS_LIMIT (200) rows upstream, parses via parseRooms
- *   (supports both string and pre-parsed array for test mocks), then drops
- *   rooms below MIN_MESSAGES_FOR_LOADING (5) so the city only renders
- *   "loadable" buildings
+ *   (supports both string and pre-parsed array for test mocks); every room is
+ *   kept in the store — rooms below MIN_MESSAGES_FOR_LOADING (5) are rendered
+ *   as ghost (empty) buildings by the scene, not dropped
  * - dedup 5s, revalidateOnFocus true, refreshInterval 0
  * - on every successful fetch, mirrors the result into the world store
  *   so the 3D scene can render buildings without re-fetching.
@@ -41,7 +41,7 @@ export function useRooms(): UseRoomsResult {
         if (Array.isArray(raw)) parsed = raw as Room[]
         else if (typeof raw === 'string') parsed = parseRooms(raw)
         else parsed = parseRooms(String(raw))
-        return filterLoadableRooms(parsed)
+        return parsed
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[useRooms] fetchRooms failed:', err)
