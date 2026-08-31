@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber'
 import * as THREE from 'three'
 import { useWorldStore } from '@/stores/world-store'
 import { computePositions } from '@/lib/three/layout'
+import { matchesRoomQuery } from '@/lib/technocore/intake'
 import { Ground } from './Ground'
 import { Building } from './Building'
 import { AgentCloud, buildAgentInstances } from './AgentCloud'
@@ -14,9 +15,19 @@ import { PostFX } from '@/lib/three/postprocessing'
 export function World() {
   const rooms = useWorldStore((s) => s.rooms)
   const agents = useWorldStore((s) => s.agents)
+  const searchQuery = useWorldStore((s) => s.searchQuery)
 
   const roomsArray = useMemo(() => Array.from(rooms.values()), [rooms])
+
+  // Positions are computed over the FULL room list so hiding buildings via
+  // search never re-lays-out the city — the city must not jump while typing.
   const positions = useMemo(() => computePositions(roomsArray), [roomsArray])
+
+  // Search only affects which buildings are visible, not where they sit.
+  const visibleRooms = useMemo(
+    () => roomsArray.filter((room) => matchesRoomQuery(room, searchQuery)),
+    [roomsArray, searchQuery],
+  )
 
   // Build the agent instance list once per (rooms, agents, positions) change.
   // All (agent, room) pairs are flattened here so <AgentCloud> can render them
@@ -56,10 +67,14 @@ export function World() {
 
       <Ground />
 
-      {/* buildings in circle — computePositions: radius = min(60, 10+sqrt(n)*7), keeps within fog 50,140.
+      {/* buildings in concentric rings — computePositions: r_k = 16+14k, cap c_k = floor(2π·r_k/8.0),
+          ~504 buildings inside fog 50,140 (n=500 → r≤128). Search filters VISIBILITY only — positions
+          stay from the full list so the city never jumps while typing.
           Labels: Building uses Sprite Billboard (always faces camera) with sizeAttenuation=false ≈ Html distanceFactor 12 + fog=false,
-          so r/name + topic(24) + badge remain SOLID in FREE VIEW orbit/pan/zoom, independent of selectedRoomId. */}
-      {roomsArray.map((room, i) => {
+          so r/name + topic(24) + badge remain SOLID in FREE VIEW orbit/pan/zoom, independent of selectedRoomId.
+          Rendering: only rooms matching the world-store searchQuery are mounted, but positions map over the
+          full list — filtering must not move the city. */}
+      {visibleRooms.map((room, i) => {
         const p = positions.get(room.name) ?? [0, 0]
         const [x, z] = p
         return <Building key={room.name} room={room} position={[x, 0, z]} index={i} />

@@ -11,6 +11,7 @@
  * permissive CORS headers.
  */
 import { AbortError, NetworkError, RateLimitError } from './errors'
+import { ROOMS_LIMIT } from './intake'
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'https://technocore.chat'
 
@@ -94,9 +95,14 @@ async function request(
   return res.text()
 }
 
-/** `GET /rooms` → raw markdown table text. */
-export async function fetchRooms(): Promise<string> {
-  return request(`${API_BASE}/rooms`, undefined, '/api/rooms')
+/**
+ * `GET /rooms?limit=N` → raw markdown table text. Defaults to `ROOMS_LIMIT`
+ * (200, the upstream's single-request cap). The same limit is forwarded to
+ * the same-origin CORS proxy fallback so both paths ingest the same amount.
+ */
+export async function fetchRooms(limit: number = ROOMS_LIMIT): Promise<string> {
+  const query = `?limit=${limit}`
+  return request(`${API_BASE}/rooms${query}`, undefined, `/api/rooms${query}`)
 }
 
 /** `GET /r/<room>` (optionally `?since=<seq>`) → raw message-line text. */

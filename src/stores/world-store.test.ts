@@ -41,6 +41,7 @@ describe('useWorldStore', () => {
       selectedAgentKey: null,
       selectedAgentScreenPos: null,
       lastUpdate: 0,
+      searchQuery: '',
     })
   })
 
@@ -308,6 +309,27 @@ describe('useWorldStore', () => {
       // Non-selection state is untouched.
       expect(after.rooms).toBe(before.rooms)
       expect(after.agents).toBe(before.agents)
+    })
+  })
+
+  describe('searchQuery', () => {
+    it('defaults to an empty string', () => {
+      expect(useWorldStore.getState().searchQuery).toBe('')
+    })
+
+    it('setSearchQuery stores the raw query string', () => {
+      useWorldStore.getState().setSearchQuery('lobby')
+      expect(useWorldStore.getState().searchQuery).toBe('lobby')
+      useWorldStore.getState().setSearchQuery('')
+      expect(useWorldStore.getState().searchQuery).toBe('')
+    })
+
+    it('updating the query leaves rooms untouched', () => {
+      useWorldStore.getState().setRooms([makeRoom('a', { messageCount: 9 })])
+      useWorldStore.getState().setSearchQuery('zzz')
+      const state = useWorldStore.getState()
+      expect(state.rooms.size).toBe(1)
+      expect(state.rooms.get('a')?.messageCount).toBe(9)
     })
   })
 })

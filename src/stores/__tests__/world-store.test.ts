@@ -18,6 +18,7 @@ describe('world-store (stores/__tests__)', () => {
       selectedAgentKey: null,
       selectedAgentScreenPos: null,
       lastUpdate: 0,
+      searchQuery: '',
     })
   })
 

@@ -53,15 +53,32 @@ describe('technocore client', () => {
   })
 
   describe('fetchRooms', () => {
-    test('happy: returns text on 200', async () => {
+    test('happy: returns text on 200 and defaults to limit=200', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse({ body: 'rooms text' }))
       const text = await fetchRooms()
       expect(text).toBe('rooms text')
-      expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/rooms`, {
+      expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/rooms?limit=200`, {
         signal: undefined,
         cache: 'no-store',
         headers: { accept: 'text/plain' },
       })
+    })
+
+    test('forwards an explicit limit to the direct URL and the proxy fallback', async () => {
+      fetchMock.mockResolvedValueOnce(mockResponse({ body: 'direct' }))
+      await fetchRooms(42)
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${API_BASE}/rooms?limit=42`,
+        expect.objectContaining({ cache: 'no-store' })
+      )
+
+      // browser-blocked direct fetch → proxy must carry the same limit
+      const blocked = new TypeError('Failed to fetch')
+      fetchMock.mockRejectedValueOnce(blocked)
+      fetchMock.mockResolvedValueOnce(mockResponse({ body: 'proxied' }))
+      const text = await fetchRooms(42)
+      expect(text).toBe('proxied')
+      expect(fetchMock).toHaveBeenLastCalledWith('/api/rooms?limit=42', expect.any(Object))
     })
 
     test('error: non-2xx throws NetworkError', async () => {

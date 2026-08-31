@@ -10,6 +10,7 @@ export interface WorldState {
   selectedAgentScreenPos: { x: number; y: number } | null
   lastUpdate: number
   newlyCreatedAt: Map<string, number>
+  searchQuery: string
 }
 
 export interface WorldActions {
@@ -23,6 +24,7 @@ export interface WorldActions {
   ) => void
   clearSelection: () => void
   markRoomNew: (name: string) => void
+  setSearchQuery: (query: string) => void
 }
 
 export type WorldStore = WorldState & WorldActions
@@ -36,6 +38,7 @@ export const useWorldStore = create<WorldStore>()(
     selectedAgentScreenPos: null,
     lastUpdate: 0,
     newlyCreatedAt: new Map(),
+    searchQuery: '',
 
     setRooms: (rooms) =>
       set(() => {
@@ -126,5 +129,7 @@ export const useWorldStore = create<WorldStore>()(
         next.set(name, Date.now())
         return { newlyCreatedAt: next }
       }),
+
+    setSearchQuery: (query) => set(() => ({ searchQuery: query })),
   })),
 )

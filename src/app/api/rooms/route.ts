@@ -21,9 +21,22 @@ function corsHeaders(): Record<string, string> {
  * default, but if technocore.chat tightens its CORS policy, the same-origin
  * /api/rooms route transparently takes over via the auto-fallback in
  * `lib/technocore/client.ts`.
+ *
+ * Accepts `?limit=N` (clamped to 1..500, default 200) and forwards it to the
+ * upstream so the city can intake up to the server's hard cap (200 rows)
+ * instead of the default 50.
  */
-export async function GET() {
-  const res = await fetch(`${apiBase()}/rooms`, {
+const DEFAULT_LIMIT = 200
+const MAX_LIMIT = 500
+
+export async function GET(request: Request) {
+  const rawLimit = new URL(request.url).searchParams.get('limit')
+  const parsedLimit = rawLimit === null ? Number.NaN : Number.parseInt(rawLimit, 10)
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(MAX_LIMIT, Math.max(1, parsedLimit))
+    : DEFAULT_LIMIT
+
+  const res = await fetch(`${apiBase()}/rooms?limit=${limit}`, {
     next: { revalidate: 30 },
     headers: { Accept: 'text/plain' },
   })

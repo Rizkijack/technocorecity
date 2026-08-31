@@ -1,14 +1,27 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils/cn';
+import { matchesRoomQuery } from '@/lib/technocore/intake';
 import { useUiStore } from '@/stores/ui-store';
-import { IconEye, IconSearch } from './icons';
+import { useWorldStore } from '@/stores/world-store';
+import { IconClose, IconEye, IconSearch } from './icons';
 
 export function Hud() {
   const legendCollapsed = useUiStore((s) => s.legendCollapsed);
   const toggleLegend = useUiStore((s) => s.toggleLegend);
+  const searchQuery = useWorldStore((s) => s.searchQuery);
+  const setSearchQuery = useWorldStore((s) => s.setSearchQuery);
+  const rooms = useWorldStore((s) => s.rooms);
   const [online, setOnline] = useState<boolean>(true);
+
+  const matched = useMemo(
+    () =>
+      Array.from(rooms.values()).filter((room) =>
+        matchesRoomQuery(room, searchQuery),
+      ).length,
+    [rooms, searchQuery],
+  );
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
@@ -56,17 +69,36 @@ export function Hud() {
         </span>
       </div>
 
-      {/* Right: legend toggle + search placeholder */}
+      {/* Right: search + legend toggle */}
       <div className="flex shrink-0 items-center gap-2">
         <div
           className={cn(
-            'hidden items-center gap-2 rounded-full border border-bg-light/30 bg-bg-mid/50 px-3 py-1.5',
-            'text-xs text-text-muted sm:flex',
+            'hidden items-center gap-2 rounded-full border border-bg-light/30 bg-bg-mid/50 px-3 py-1.5 sm:flex',
+            'focus-within:border-accent-cyan focus-within:ring-1 focus-within:ring-accent-cyan',
           )}
-          aria-hidden="true"
         >
           <IconSearch size={14} className="shrink-0 text-text-muted" />
-          <span className="font-mono text-xs">Search rooms…</span>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search rooms…"
+            aria-label="Search rooms"
+            className="w-32 bg-transparent font-mono text-xs text-text-primary placeholder:text-text-muted focus:outline-none md:w-44"
+          />
+          {searchQuery.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              className="shrink-0 text-text-muted transition-colors hover:text-text-primary"
+            >
+              <IconClose size={12} />
+            </button>
+          ) : null}
+          <span className="shrink-0 font-mono text-[11px] text-text-muted">
+            {matched}/{rooms.size}
+          </span>
         </div>
 
         <button
