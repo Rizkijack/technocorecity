@@ -247,8 +247,9 @@ describe('technocore client', () => {
     test('happy without since → no query', async () => {
       fetchMock.mockResolvedValueOnce(mockResponse({ body: 'msg' }))
       const _t = await fetchRoom('my room')
+      // fetchRoom now tries direct URL first, falls back to proxy on CORS error
       expect(fetchMock).toHaveBeenCalledWith(
-        `/api/r/${encodeURIComponent('my room')}`,
+        `${API_BASE}/r/${encodeURIComponent('my room')}`,
         expect.objectContaining({ cache: 'no-store' })
       )
     })
@@ -257,7 +258,7 @@ describe('technocore client', () => {
       fetchMock.mockResolvedValueOnce(mockResponse({ body: 'x' }))
       await fetchRoom('lobby', 42)
       expect(fetchMock).toHaveBeenCalledWith(
-        `/api/r/${encodeURIComponent('lobby')}?since=42`,
+        `${API_BASE}/r/${encodeURIComponent('lobby')}?since=42`,
         expect.any(Object)
       )
     })

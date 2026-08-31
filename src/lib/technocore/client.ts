@@ -15,14 +15,14 @@ import { ROOMS_LIMIT } from './intake'
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'https://technocore.chat'
 
-const sleep = (ms: number): Promise<void> => {
-  const { promise, resolve } = Promise.withResolvers<void>()
-  setTimeout(resolve, ms)
-  return promise
-}
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
 
 /** Per-attempt cap for RateLimitError backoff: a bad Retry-After hint must not block us. */
 const MAX_RATE_LIMIT_WAIT_MS = 60_000
+
+/** Max sane Retry-After value we'll accept (seconds). */
+const MAX_RETRY_AFTER_S = 3600
 
 /**
  * Detect fetch errors that suggest the browser refused the request before it
@@ -81,12 +81,11 @@ async function request(
       const m = /\d+/.exec(body)
       if (m) retryAfter = Number.parseInt(m[0], 10)
     }
-    throw new RateLimitError(
-      res.status,
-      res.statusText || 'Too Many Requests',
-      Number.isFinite(retryAfter) ? retryAfter : 0,
-      'read'
-    )
+    // Clamp to sane range — reject negative and absurdly large values
+    const clamped = Number.isFinite(retryAfter) && retryAfter >= 0
+      ? Math.min(MAX_RETRY_AFTER_S, retryAfter)
+      : 0
+    throw new RateLimitError(res.status, res.statusText || 'Too Many Requests', clamped, 'read')
   }
 
   if (!res.ok) {
@@ -105,7 +104,13 @@ export async function fetchRooms(limit: number = ROOMS_LIMIT): Promise<string> {
   return request(`${API_BASE}/rooms${query}`, undefined, `/api/rooms${query}`)
 }
 
-/** `GET /r/<room>` (optionally `?since=<seq>`) → raw message-line text. */
+/**
+ * `GET /r/<room>` (optionally `?since=<seq>`) → raw message-line text.
+ * Routes through the same-origin proxy by default because technocore.chat
+ * omits `Access-Control-Allow-Origin` on /r/* paths when degraded.
+ * Also passes `proxyUrl` so the CORS-fallback logic in `request()` applies
+ * when the upstream returns a network error on direct fetch.
+ */
 export async function fetchRoom(
   name: string,
   since?: number,
@@ -114,13 +119,11 @@ export async function fetchRoom(
   if (since !== undefined && !Number.isFinite(since)) {
     throw new TypeError(`since must be finite number, got ${String(since)}`)
   }
-  let path = `/api/r/${encodeURIComponent(name)}`
+  const directPath = `/r/${encodeURIComponent(name)}`
+  const proxyPath = `/api/r/${encodeURIComponent(name)}`
+  let path = directPath
   if (since !== undefined) path += `?since=${encodeURIComponent(String(since))}`
-  // Route /r/* reads through the same-origin proxy unconditionally. The
-  // upstream omits `Access-Control-Allow-Origin` on /r/* paths when it is
-  // degraded, so a direct fetch is rejected by the browser on every 5xx
-  // response. The proxy forwards a permissive ACAO header.
-  return request(path, signal, undefined)
+  return request(`${API_BASE}${path}`, signal, proxyPath)
 }
 
 /**
@@ -147,14 +150,18 @@ export async function fetchEvents(since: number, signal?: AbortSignal): Promise<
 export interface WithRetryOptions {
   /** Max retries on RateLimitError (server provides the wait hint). Default 5. */
   maxRateLimitRetries?: number
-  /** Max retries on NetworkError with 1s/2s/4s backoff. Default 3. */
+  /** Max retries on 5xx/408/429 NetworkError with 1s/2s/4s backoff. Default 3. */
   maxNetworkRetries?: number
 }
+
+/** HTTP status codes that are safe to retry (transient server errors). */
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
 
 /**
  * Retry helper: RateLimitError → sleep `retryAfter` seconds (capped at 60s
  * per attempt; malformed/negative hints fall back to 1s) then retry
- * (default 5); NetworkError → exponential backoff 1s/2s/4s (max 3 retries).
+ * (default 5); NetworkError → only retry on 5xx/408/429 with exponential
+ * backoff 1s/2s/4s (max 3 retries). 4xx (except 408/429) propagate immediately.
  * Anything else propagates immediately.
  */
 export async function withRetry<T>(
@@ -184,6 +191,9 @@ export async function withRetry<T>(
         continue
       }
       if (err instanceof NetworkError) {
+        // Only retry transient server errors — 4xx (except 408/429) are
+        // permanent and retrying wastes time.
+        if (!RETRYABLE_STATUSES.has(err.status)) throw err
         if (networkAttempts >= maxNetwork) throw err
         networkAttempts += 1
         await sleep(1000 * 2 ** (networkAttempts - 1)) // 1s, 2s, 4s

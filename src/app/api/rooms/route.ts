@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
 
+// Edge runtime: no 10s function timeout (Hobby limit on Node). The /rooms
+// route benefits from Edge cold-start too.
+export const runtime = 'edge'
+
 const DEFAULT_BASE = 'https://technocore.chat'
 
+// Misleading — NEXT_PUBLIC_ is for client-bundled env; this is server-only.
+// Kept for backward compat with existing .env files.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE
+
 function apiBase(): string {
-  return (process.env.NEXT_PUBLIC_API_BASE ?? DEFAULT_BASE).replace(/\/$/, '')
+  return API_BASE.replace(/\/$/, '')
 }
 
 function corsHeaders(): Record<string, string> {
@@ -13,6 +21,17 @@ function corsHeaders(): Record<string, string> {
     'Access-Control-Allow-Headers': 'Content-Type, Accept',
     'Access-Control-Max-Age': '600',
   }
+}
+
+/** Max upstream body size before we bail (1 MB). */
+const MAX_BODY_BYTES = 1_000_000
+
+/** Clamp a Retry-After header to a sane range. */
+function clampRetryAfter(raw: string | null): string | undefined {
+  if (!raw) return undefined
+  const n = Number.parseInt(raw, 10)
+  if (!Number.isFinite(n) || n < 0) return undefined
+  return String(Math.min(3600, n))
 }
 
 /**
@@ -37,24 +56,43 @@ export async function GET(request: Request) {
     : DEFAULT_LIMIT
 
   const res = await fetch(`${apiBase()}/rooms?limit=${limit}`, {
-    next: { revalidate: 30 },
     headers: { Accept: 'text/plain' },
+    signal: AbortSignal.timeout(15_000),
   })
-  const body = await res.text()
-  // Hardcode safe headers — don't trust upstream cache poisoning.
-  if (body.length > 1_000_000) {
+
+  // Size guard — buffer is needed for text proxy, so check Content-Length
+  // first when available to avoid buffering a huge response.
+  const cl = res.headers.get('content-length')
+  if (cl && Number.parseInt(cl, 10) > MAX_BODY_BYTES) {
     return new NextResponse('upstream response too large', {
       status: 502,
       headers: corsHeaders(),
     })
   }
+
+  const body = await res.text()
+  if (body.length > MAX_BODY_BYTES) {
+    return new NextResponse('upstream response too large', {
+      status: 502,
+      headers: corsHeaders(),
+    })
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=120',
     ...corsHeaders(),
   }
-  const retryAfter = res.headers.get('retry-after')
+
+  // Only cache on success — don't cache 5xx from upstream (amplifies outage).
+  if (res.ok) {
+    headers['Cache-Control'] = 'public, max-age=0, s-maxage=30, stale-while-revalidate=120'
+  } else {
+    headers['Cache-Control'] = 'no-store'
+  }
+
+  const retryAfter = clampRetryAfter(res.headers.get('retry-after'))
   if (retryAfter) headers['retry-after'] = retryAfter
+
   return new NextResponse(body, { status: res.status, headers })
 }
 

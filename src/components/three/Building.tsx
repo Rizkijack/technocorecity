@@ -47,7 +47,8 @@ const LABEL_PADDING_X = 8
 const LABEL_PADDING_Y = 4
 const LABEL_RADIUS = 10
 
-export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTexture {
+export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
   const measure = document.createElement('canvas')
   const mctx = measure.getContext('2d')!
   mctx.font = active ? '600 14px ui-monospace, "JetBrains Mono", Menlo, monospace' : LABEL_FONT
@@ -115,7 +116,8 @@ export function makeSolidLabelTexture(
   room: Room,
   hovered: boolean,
   isSelected: boolean,
-): THREE.CanvasTexture {
+): THREE.CanvasTexture | null {
+  if (typeof document === 'undefined') return null
   const ghost = isEmptyRoom(room)
   const hasTopic = typeof room.topic === 'string' && room.topic.trim().length > 0
   const topicTrunc = hasTopic ? truncate(room.topic.trim(), 24) : ''
@@ -308,13 +310,23 @@ export function makeSolidLabelTexture(
   return tex
 }
 
-// Cache building box geometries by dimension tuple.
+// Cache building box geometries by dimension tuple. Bounded to avoid GPU
+// memory leaks when topic lengths produce many unique dimensions.
+const MAX_GEOMETRY_CACHE = 200
 const geometryCache = new Map<string, THREE.BoxGeometry>()
 function sharedBuildingGeometry(w: number, h: number, d: number): THREE.BoxGeometry {
   const key = `${w.toFixed(2)}|${h.toFixed(2)}|${d.toFixed(2)}`
   let geo = geometryCache.get(key)
   if (!geo) {
     geo = createBuildingGeometry(w, h, d)
+    // Evict oldest entry when cache is full
+    if (geometryCache.size >= MAX_GEOMETRY_CACHE) {
+      const oldest = geometryCache.keys().next().value
+      if (oldest !== undefined) {
+        geometryCache.get(oldest)?.dispose()
+        geometryCache.delete(oldest)
+      }
+    }
     geometryCache.set(key, geo)
   }
   return geo
@@ -380,19 +392,29 @@ export function Building({ room, position, index: _index }: BuildingProps) {
   // Solid 3-line Billboard label — directly from room prop (world-store ← useRooms → fetchRooms → parseRooms)
   // No manual fetch; sync via world-store. Billboard via Sprite (always faces camera),
   // sizeAttenuation=false ≈ Html distanceFactor 12-15, fog:false so not lost in fog, free-view orbit/pan/zoom agnostic.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const labelTexture = useMemo(() => {
     return makeSolidLabelTexture(room, hovered, isSelected)
-  }, [room, hovered, isSelected])
+  }, [room.name, room.topic, room.messageCount, hovered, isSelected])
   useEffect(() => {
     return () => {
-      labelTexture.dispose()
+      labelTexture?.dispose()
     }
   }, [labelTexture])
+
+  // Reset document cursor on unmount — prevents stuck "pointer" cursor
+  // when the component unmounts while hovered.
+  useEffect(() => {
+    return () => {
+      document.body.style.cursor = ''
+    }
+  }, [])
 
   // Sprite scale — sizeAttenuation=false keeps constant screen size (readable 5-40 units)
   // hover 1.1, selected 1.15 as per AC; halo brighter when selected
   const labelScale = useMemo(() => {
-    const img = labelTexture.image as HTMLCanvasElement | undefined
+    if (!labelTexture) return { x: 0.18, y: 0.055 }
+    const img = labelTexture.image as HTMLCanvasElement
     const aspect = img && img.width > 0 ? img.width / img.height : 3.2
     const baseH = 0.055
     const mult = isSelected ? 1.15 : hovered ? 1.1 : 1
@@ -589,18 +611,20 @@ export function Building({ room, position, index: _index }: BuildingProps) {
           Uses makeSolidLabelTexture (r/name mono 12px bold #e8eaf6 halo #0a0e27, topic sans 9px truncated 24, badge #1c2347;
           ghost rooms with <5 messages get a dim "empty" badge variant — no cyan).
           Hover 1.1 cyan text, selected 1.15 brighter halo — no geometry per frame. */}
-      <sprite position={[0, labelY, 0]} scale={[labelScale.x, labelScale.y, 1]}>
-        <spriteMaterial
-          attach="material"
-          map={labelTexture}
-          transparent
-          depthTest
-          depthWrite={false}
-          sizeAttenuation={false}
-          fog={false}
-          toneMapped={false}
-        />
-      </sprite>
+      {labelTexture && (
+        <sprite position={[0, labelY, 0]} scale={[labelScale.x, labelScale.y, 1]}>
+          <spriteMaterial
+            attach="material"
+            map={labelTexture}
+            transparent
+            depthTest={false}
+            depthWrite={false}
+            sizeAttenuation={false}
+            fog={false}
+            toneMapped={false}
+          />
+        </sprite>
+      )}
     </group>
   )
 }

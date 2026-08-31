@@ -47,7 +47,6 @@ describe('GET /api/rooms', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'https://technocore.chat/rooms?limit=200',
       expect.objectContaining({
-        next: { revalidate: 30 },
         headers: { Accept: 'text/plain' },
       }),
     )
