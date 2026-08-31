@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Room } from '@/lib/technocore/types'
 import { useWorldStore } from '@/stores/world-store'
+import { formatNumber, truncate } from '@/lib/utils/format'
 import {
   createBuildingGeometry,
   floorBandGeometryFor,
@@ -21,24 +22,28 @@ import {
 } from '@/lib/three/materials'
 
 /**
- * Sprite-based room label rendered as a 3D mesh so it works under
- * PointerLockControls and is always visible regardless of DOM stacking.
+ * Sprite-based room label — Billboard equivalent.
+ * Sprite always faces camera (native Billboard), sizeAttenuation:false
+ * gives constant screen-size like Html distanceFactor 12-15,
+ * and fog:false keeps it visible in fog 50-140 (FREE VIEW [0,30,50]).
  *
- * We draw the label into a 2D canvas at render time, upload it as a
- * CanvasTexture, and mount a <sprite> above the building roof. Sprites
- * always face the camera in three.js (no manual billboarding needed),
- * and they're a single textured quad — cheap enough for 50+ rooms.
+ * Visual spec (07-design-language):
+ *  - r/<name> mono 12px bold #e8eaf6 + halo #0a0e27
+ *  - topic truncated 24 sans 9px #a0a8c8 (if any)
+ *  - badge "x msgs" compact via formatNumber, bg #1c2347 rounded
+ *  - hover: scale 1.1 + text-accent-cyan, selected: scale 1.15 + brighter halo
  *
- * Two states: idle (translucent dark pill, white text) and
- * active (selected OR hovered, full cyan background).
+ * CanvasTexture is rebuilt only when room data or hover/selected changes;
+ * previous texture disposed — no memory leak. 50 sprites is fine for MVP.
  */
+
+// Keep legacy single-line API for regression guard (test expects export)
 const LABEL_FONT = '500 12px ui-monospace, "JetBrains Mono", Menlo, monospace'
 const LABEL_PADDING_X = 8
 const LABEL_PADDING_Y = 4
 const LABEL_RADIUS = 10
 
 export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTexture {
-  // Measure first to size the canvas exactly
   const measure = document.createElement('canvas')
   const mctx = measure.getContext('2d')!
   mctx.font = active ? '600 14px ui-monospace, "JetBrains Mono", Menlo, monospace' : LABEL_FONT
@@ -50,14 +55,13 @@ export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTex
 
   const w = textW + LABEL_PADDING_X * 2
   const h = fontSize + LABEL_PADDING_Y * 2
-  const dpr = 2 // sharper text
+  const dpr = 2
   const canvas = document.createElement('canvas')
   canvas.width = w * dpr
   canvas.height = h * dpr
   const ctx = canvas.getContext('2d')!
   ctx.scale(dpr, dpr)
 
-  // Pill background
   ctx.beginPath()
   const r = Math.min(LABEL_RADIUS, h / 2)
   ctx.moveTo(LABEL_PADDING_X, 0)
@@ -79,21 +83,177 @@ export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTex
   ctx.fill()
   ctx.shadowBlur = 0
 
-  // Border
-  ctx.strokeStyle = active
-    ? 'rgba(0, 212, 255, 1)'
-    : 'rgba(255, 255, 255, 0.18)'
+  ctx.strokeStyle = active ? 'rgba(0, 212, 255, 1)' : 'rgba(255, 255, 255, 0.18)'
   ctx.lineWidth = 1
   ctx.stroke()
 
-  // Text
   ctx.font = `${fontWeight} ${fontSize}px ui-monospace, "JetBrains Mono", Menlo, monospace`
   ctx.textBaseline = 'middle'
-  // 'r/' prefix dimmer than name
   ctx.fillStyle = active ? 'rgba(10, 14, 39, 0.55)' : 'rgba(232, 234, 246, 0.45)'
   ctx.fillText('r/', LABEL_PADDING_X, h / 2 + 0.5)
   ctx.fillStyle = active ? '#0a0e27' : '#e8eaf6'
   ctx.fillText(text, LABEL_PADDING_X + prefixW, h / 2 + 0.5)
+
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.minFilter = THREE.LinearFilter
+  tex.magFilter = THREE.LinearFilter
+  tex.needsUpdate = true
+  return tex
+}
+
+// Solid 3-line label: r/name + topic (24ch) + messageCount badge
+// Billboard via Sprite + Html transform occlude={false} distanceFactor={12} equivalent
+export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: boolean): THREE.CanvasTexture {
+  const hasTopic = typeof room.topic === 'string' && room.topic.trim().length > 0
+  const topicTrunc = hasTopic ? truncate(room.topic.trim(), 24) : ''
+  const badgeText = `${formatNumber(room.messageCount)} msgs`
+
+  const PAD_X = 10
+  const PAD_Y = 7
+  const GAP = 4
+  const NAME_H = 12
+  const TOPIC_H = 9
+  const BADGE_H = 13
+  const BADGE_PAD_X = 7
+
+  // measure widths
+  const m = document.createElement('canvas')
+  const mctx = m.getContext('2d')!
+  mctx.font = '700 12px ui-monospace, "JetBrains Mono", Menlo, monospace'
+  const fullName = `r/${room.name}`
+  const nameW = Math.ceil(mctx.measureText(fullName).width)
+  // prefix split for two-tone rendering
+  // (measure prefix for offset, but width already in nameW)
+  const prefixW = Math.ceil(mctx.measureText('r/').width)
+  let topicW = 0
+  if (hasTopic) {
+    mctx.font = '400 9px Inter, system-ui, sans-serif'
+    topicW = Math.ceil(mctx.measureText(topicTrunc).width)
+  }
+  mctx.font = '600 9px ui-monospace, "JetBrains Mono", Menlo, monospace'
+  const badgeW = Math.ceil(mctx.measureText(badgeText).width)
+  const badgePillW = badgeW + BADGE_PAD_X * 2
+
+  const contentW = Math.max(nameW, topicW, badgePillW)
+  const w = Math.ceil(contentW + PAD_X * 2)
+  let h = PAD_Y * 2 + NAME_H
+  if (hasTopic) h += GAP + TOPIC_H
+  h += GAP + BADGE_H
+
+  const dpr = 2
+  const canvas = document.createElement('canvas')
+  canvas.width = w * dpr
+  canvas.height = h * dpr
+  const ctx = canvas.getContext('2d')!
+  ctx.scale(dpr, dpr)
+
+  // outer pill — uses bg-deep #0a0e27 halo for contrast, not lost in fog
+  const r = 12
+  ctx.beginPath()
+  ctx.moveTo(r, 0)
+  ctx.arcTo(w, 0, w, h, r)
+  ctx.arcTo(w, h, 0, h, r)
+  ctx.arcTo(0, h, 0, 0, r)
+  ctx.arcTo(0, 0, w, 0, r)
+  ctx.closePath()
+  if (isSelected) {
+    ctx.fillStyle = 'rgba(0, 212, 255, 0.96)'
+    ctx.shadowColor = 'rgba(0, 212, 255, 0.6)'
+    ctx.shadowBlur = 16
+  } else if (hovered) {
+    ctx.fillStyle = 'rgba(18, 24, 58, 0.92)'
+    ctx.shadowColor = 'rgba(0, 212, 255, 0.35)'
+    ctx.shadowBlur = 10
+  } else {
+    ctx.fillStyle = 'rgba(10, 14, 39, 0.84)'
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)'
+    ctx.shadowBlur = 8
+  }
+  ctx.fill()
+  ctx.shadowBlur = 0
+  ctx.strokeStyle = isSelected ? 'rgba(0,212,255,1)' : hovered ? 'rgba(0,212,255,0.5)' : 'rgba(255,255,255,0.14)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+
+  // layout y — name at top
+  let y = PAD_Y + NAME_H / 2
+  const cx = w / 2
+
+  // --- name line: r/ (dim) + name (bold) centered as block ---
+  ctx.textBaseline = 'middle'
+  // outline halo #0a0e27 for contrast on fog
+  ctx.lineJoin = 'round'
+  ctx.miterLimit = 2
+  const nameStartX = cx - nameW / 2
+  const nameY = y
+  // halo stroke
+  ctx.font = '700 12px ui-monospace, "JetBrains Mono", Menlo, monospace'
+  ctx.strokeStyle = '#0a0e27'
+  ctx.lineWidth = 3.5
+  ctx.textAlign = 'left'
+  ctx.strokeText('r/', nameStartX, nameY)
+  ctx.strokeText(room.name, nameStartX + prefixW, nameY)
+  // fill
+  if (isSelected) {
+    ctx.fillStyle = 'rgba(10,14,39,0.55)'
+    ctx.fillText('r/', nameStartX, nameY)
+    ctx.fillStyle = '#0a0e27'
+    ctx.fillText(room.name, nameStartX + prefixW, nameY)
+  } else if (hovered) {
+    ctx.fillStyle = 'rgba(0,212,255,0.6)'
+    ctx.fillText('r/', nameStartX, nameY)
+    ctx.fillStyle = '#00d4ff'
+    ctx.fillText(room.name, nameStartX + prefixW, nameY)
+  } else {
+    ctx.fillStyle = 'rgba(232,234,246,0.45)'
+    ctx.fillText('r/', nameStartX, nameY)
+    ctx.fillStyle = '#e8eaf6'
+    ctx.fillText(room.name, nameStartX + prefixW, nameY)
+  }
+
+  y += NAME_H / 2 + GAP
+
+  // --- topic line ---
+  if (hasTopic) {
+    y += TOPIC_H / 2
+    ctx.font = '400 9px Inter, system-ui, sans-serif'
+    ctx.textAlign = 'center'
+    // halo
+    ctx.strokeStyle = '#0a0e27'
+    ctx.lineWidth = 2.5
+    ctx.strokeText(topicTrunc, cx, y)
+    ctx.fillStyle = hovered ? '#c8d0f0' : '#a0a8c8'
+    ctx.fillText(topicTrunc, cx, y)
+    y += TOPIC_H / 2 + GAP
+  } else {
+    // no topic: y already at gap position, keep for badge
+  }
+
+  // --- badge line ---
+  y += BADGE_H / 2
+  const badgeX = cx - badgePillW / 2
+  const badgeY = y - BADGE_H / 2
+  // badge pill bg #1c2347 (bg-elev)
+  ctx.beginPath()
+  const br = BADGE_H / 2
+  ctx.moveTo(badgeX + br, badgeY)
+  ctx.arcTo(badgeX + badgePillW, badgeY, badgeX + badgePillW, badgeY + BADGE_H, br)
+  ctx.arcTo(badgeX + badgePillW, badgeY + BADGE_H, badgeX, badgeY + BADGE_H, br)
+  ctx.arcTo(badgeX, badgeY + BADGE_H, badgeX, badgeY, br)
+  ctx.arcTo(badgeX, badgeY, badgeX + badgePillW, badgeY, br)
+  ctx.closePath()
+  ctx.fillStyle = isSelected ? 'rgba(28,35,71,1)' : 'rgba(28,35,71,0.96)'
+  ctx.fill()
+  ctx.strokeStyle = isSelected ? 'rgba(0,212,255,0.45)' : 'rgba(255,255,255,0.10)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+  ctx.font = '600 9px ui-monospace, "JetBrains Mono", Menlo, monospace'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  // badge text halo #0a0e27 already via pill contrast
+  ctx.fillStyle = '#e8eaf6'
+  ctx.fillText(badgeText, cx, y)
 
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
@@ -156,38 +316,32 @@ export function Building({ room, position, index: _index }: BuildingProps) {
   // windows — up to 3, spaced vertically inside the building
   const windowYs = useMemo(() => {
     const count = Math.min(3, Math.max(1, bandYs.length + 1))
-    // if single floor, center it
     if (count === 1) return [0.4 + height / 2]
     return Array.from({ length: count }, (_, i) => 0.4 + ((i + 1) * height) / (count + 1))
   }, [bandYs.length, height])
 
-  // Room label: CanvasTexture rendered into a Sprite.
-  // - `active` = selected OR hovered → full cyan pill, dark text.
-  // - idle → translucent dark pill, light text.
-  // Texture is rebuilt only when name or active changes; old texture is
-  // disposed to avoid GPU leaks.
-  const labelActive = isSelected || hovered
+  // Solid 3-line Billboard label — directly from room prop (world-store ← useRooms → fetchRooms → parseRooms)
+  // No manual fetch; sync via world-store. Billboard via Sprite (always faces camera),
+  // sizeAttenuation=false ≈ Html distanceFactor 12-15, fog:false so not lost in fog, free-view orbit/pan/zoom agnostic.
   const labelTexture = useMemo(() => {
-    return makeLabelTexture(room.name, labelActive)
-  }, [room.name, labelActive])
+    return makeSolidLabelTexture(room, hovered, isSelected)
+  }, [room, hovered, isSelected])
   useEffect(() => {
     return () => {
       labelTexture.dispose()
     }
   }, [labelTexture])
 
-  // Sprite scale. With `sizeAttenuation=false` the shader compensates for
-  // camera distance so the sprite renders at a constant *screen* size.
-  // Empirically (fov 50, typical camera dist 50-60 from the building ring
-  // of radius 10-60) a world scale of ~0.06 produces a pill ~40-50 px tall
-  // on a 1080p viewport — comfortably readable in free view and clearly
-  // prominent when the room is selected ("inside gedung" mode).
+  // Sprite scale — sizeAttenuation=false keeps constant screen size (readable 5-40 units)
+  // hover 1.1, selected 1.15 as per AC; halo brighter when selected
   const labelScale = useMemo(() => {
     const img = labelTexture.image as HTMLCanvasElement | undefined
-    const aspect = img && img.width > 0 ? img.width / img.height : 4
-    const worldHeight = isSelected ? 0.09 : 0.06
+    const aspect = img && img.width > 0 ? img.width / img.height : 3.2
+    const baseH = 0.055
+    const mult = isSelected ? 1.15 : hovered ? 1.1 : 1
+    const worldHeight = baseH * mult
     return { x: worldHeight * aspect, y: worldHeight }
-  }, [labelTexture, isSelected])
+  }, [labelTexture, isSelected, hovered])
 
   const edgesGeometry = useMemo(
     () => new THREE.EdgesGeometry(sharedBuildingGeometry(width, height, depth)),
@@ -229,7 +383,7 @@ export function Building({ room, position, index: _index }: BuildingProps) {
   const buildingY = 0.4 + height / 2
   const rooftopY = 0.4 + height + 0.3
   const antennaY = 0.4 + height + 0.6 + 0.5
-  const labelY = 0.4 + height + 1.4
+  const labelY = 0.4 + height + 1.6
 
   return (
     // eslint-disable-next-line react/no-unknown-property
@@ -350,13 +504,12 @@ export function Building({ room, position, index: _index }: BuildingProps) {
         <pointLight position={[0, rooftopY + 1.2, 0]} intensity={1.25} distance={16} color="#00d4ff" decay={2} />
       ) : null}
 
-      {/* room label — sprite with CanvasTexture.
-       * Always faces camera, fixed world size, immune to DOM stacking.
-       * Texture is regenerated when the active (selected|hovered) state
-       * changes (see labelTexture memo); previous texture is disposed.
-       * sizeAttenuation=false keeps the label at a constant pixel size
-       * regardless of camera distance, so the name is always legible in
-       * both free view and inside-building (selected) mode. */}
+      {/* Billboard room label — Sprite is native Billboard (always faces camera).
+          Html alternative would be <Billboard><Html transform occlude={false} distanceFactor={12}>…</Html></Billboard>
+          but Sprite avoids DOM layer issues under PointerLockControls, cheaper for 50 buildings,
+          and sizeAttenuation={false} + fog={false} keeps it SOLID in FREE VIEW (orbit/pan/zoom, fog 50,140, camera [0,30,50]).
+          Uses makeSolidLabelTexture (r/name mono 12px bold #e8eaf6 halo #0a0e27, topic sans 9px truncated 24, badge #1c2347).
+          Hover 1.1 cyan text, selected 1.15 brighter halo — no geometry per frame. */}
       <sprite position={[0, labelY, 0]} scale={[labelScale.x, labelScale.y, 1]}>
         <spriteMaterial
           attach="material"
@@ -365,6 +518,7 @@ export function Building({ room, position, index: _index }: BuildingProps) {
           depthTest
           depthWrite={false}
           sizeAttenuation={false}
+          fog={false}
           toneMapped={false}
         />
       </sprite>

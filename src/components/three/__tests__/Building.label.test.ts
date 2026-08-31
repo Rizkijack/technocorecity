@@ -18,15 +18,22 @@
  *   - The module imports `THREE` (the sprite implementation depends on it)
  *     and does NOT import `Html` from drei (the broken state is detected).
  *   - `Building` is exported as a named export.
+ *   - The JSX contains a `<sprite>` consumer (the label is actually wired up).
  *
  * The visual correctness (label actually appears on screen, correct size,
  * correct text) is verified manually + via the dev server smoke test,
  * because it requires a real WebGL canvas that jsdom cannot provide.
  */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { makeLabelTexture, Building } from '../Building'
-// Import the raw module to inspect its import structure.
 import * as BuildingModule from '../Building'
+import { Building, makeLabelTexture } from '../Building'
+
+// `import.meta.url` → path to this test file. Vitest ESM supports it.
+const here = fileURLToPath(import.meta.url)
+const buildingSource = readFileSync(resolve(here, '../Building.tsx'), 'utf8')
 
 describe('Building module — label regression guards', () => {
   it('exports makeLabelTexture (the sprite label mechanism must exist)', () => {
@@ -44,37 +51,21 @@ describe('Building module — label regression guards', () => {
     // <Html> import. Re-introducing it without restoring the consumer in
     // JSX is what caused the original "room name invisible" bug + a build
     // failure. Guard against that.
-    //
-    // We check the module's source via the require cache: the file must
-    // not contain "from '@react-three/drei'" anywhere. This is a structural
-    // guard, not a behavioral one — but it's deterministic and fast.
-    const moduleSource = require('node:fs').readFileSync(
-      require('node:path').resolve(__dirname, '../Building.tsx'),
-      'utf8',
-    )
-    expect(moduleSource).not.toMatch(/from\s+['"]@react-three\/drei['"]/)
+    expect(buildingSource).not.toMatch(/from\s+['"]@react-three\/drei['"]/)
   })
 
   it('imports THREE (required by Sprite / SpriteMaterial / CanvasTexture)', () => {
-    const moduleSource = require('node:fs').readFileSync(
-      require('node:path').resolve(__dirname, '../Building.tsx'),
-      'utf8',
-    )
-    expect(moduleSource).toMatch(/from\s+['"]three['"]/)
+    expect(buildingSource).toMatch(/from\s+['"]three['"]/)
   })
 
   it('renders a <sprite> element in the JSX (the label consumer is wired up)', () => {
     // The single most important regression guard: the JSX must contain a
     // <sprite element. If the sprite is removed, the label is invisible
     // (the bug we are fixing).
-    const moduleSource = require('node:fs').readFileSync(
-      require('node:path').resolve(__dirname, '../Building.tsx'),
-      'utf8',
-    )
-    expect(moduleSource).toMatch(/<sprite[\s>]/)
+    expect(buildingSource).toMatch(/<sprite[\s>]/)
     // And the sprite must be configured for constant screen size, so the
     // name is legible at any camera distance (free view + inside gedung).
-    expect(moduleSource).toMatch(/sizeAttenuation=\{false\}/)
+    expect(buildingSource).toMatch(/sizeAttenuation=\{false\}/)
   })
 
   it('module exports the expected public surface', () => {

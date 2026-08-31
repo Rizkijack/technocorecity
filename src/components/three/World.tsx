@@ -56,7 +56,9 @@ export function World() {
 
       <Ground />
 
-      {/* buildings in circle — computePositions: radius = min(60, 10+sqrt(n)*7), keeps within fog 50,140 */}
+      {/* buildings in circle — computePositions: radius = min(60, 10+sqrt(n)*7), keeps within fog 50,140.
+          Labels: Building uses Sprite Billboard (always faces camera) with sizeAttenuation=false ≈ Html distanceFactor 12 + fog=false,
+          so r/name + topic(24) + badge remain SOLID in FREE VIEW orbit/pan/zoom, independent of selectedRoomId. */}
       {roomsArray.map((room, i) => {
         const p = positions.get(room.name) ?? [0, 0]
         const [x, z] = p
