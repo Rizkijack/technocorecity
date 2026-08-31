@@ -56,7 +56,7 @@ export function World() {
 
       <Ground />
 
-      {/* buildings in circle — computePositions handles radius = max(20, n*3) */}
+      {/* buildings in circle — computePositions: radius = min(60, 10+sqrt(n)*7), keeps within fog 50,140 */}
       {roomsArray.map((room, i) => {
         const p = positions.get(room.name) ?? [0, 0]
         const [x, z] = p
