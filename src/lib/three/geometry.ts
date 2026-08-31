@@ -74,3 +74,11 @@ export const sharedWindowGeometry = new PlaneGeometry(0.55, 0.75)
 
 /** Antenna stick */
 export const sharedAntennaGeometry = new BoxGeometry(0.1, 1.0, 0.1)
+
+// ——— Ground road/curb — shared, scaled at mesh level ———
+/** Road uses the same unit plane, scaled to [len, width] */
+export const sharedRoadGeometry = groundPlaneGeometry
+/** Curb along X (east-west): length scaled on X, 0.08 high, 0.4 deep */
+export const sharedCurbXGeometry = new BoxGeometry(1, 0.08, 0.4)
+/** Curb along Z (north-south): 0.4 wide, 0.08 high, length scaled on Z */
+export const sharedCurbZGeometry = new BoxGeometry(0.4, 0.08, 1)

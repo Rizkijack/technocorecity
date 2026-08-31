@@ -66,3 +66,22 @@ export const antennaMaterialInst = new MeshStandardMaterial({
   roughness: 0.4,
   metalness: 0.6,
 })
+
+// ——— Ground road/curb ———
+export const roadMaterialInst = new MeshStandardMaterial({
+  color: 0x1a1f3d,
+  roughness: 0.9,
+  metalness: 0.1,
+})
+export function roadMaterial(): MeshStandardMaterial {
+  return roadMaterialInst
+}
+
+export const curbMaterialInst = new MeshStandardMaterial({
+  color: 0x2a3160,
+  roughness: 0.85,
+  metalness: 0.15,
+})
+export function curbMaterial(): MeshStandardMaterial {
+  return curbMaterialInst
+}
