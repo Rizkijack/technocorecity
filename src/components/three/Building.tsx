@@ -37,7 +37,7 @@ const LABEL_PADDING_X = 8
 const LABEL_PADDING_Y = 4
 const LABEL_RADIUS = 10
 
-function makeLabelTexture(text: string, active: boolean): THREE.CanvasTexture {
+export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTexture {
   // Measure first to size the canvas exactly
   const measure = document.createElement('canvas')
   const mctx = measure.getContext('2d')!

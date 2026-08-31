@@ -28,3 +28,4 @@ export interface EventLine {
   roomName: string
   ts: string
 }
+"// $(date)"  
