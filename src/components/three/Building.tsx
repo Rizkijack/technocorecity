@@ -83,6 +83,7 @@ export function Building({ room, position, index: _index }: BuildingProps) {
     () => new THREE.EdgesGeometry(sharedBuildingGeometry(width, height, depth)),
     [width, height, depth],
   )
+  useEffect(() => () => edgesGeometry.dispose(), [edgesGeometry])
 
   useEffect(() => {
     if (newAt === undefined) return
