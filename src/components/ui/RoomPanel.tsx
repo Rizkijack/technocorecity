@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils/cn';
-import { formatBytes, formatIdle, formatNumber } from '@/lib/utils/format';
+import { formatBytes, formatIdle, formatNumber, formatRoomName } from '@/lib/utils/format';
 import { useWorldStore } from '@/stores/world-store';
 import { useRoomMessages } from '@/hooks/useRoomMessages';
 import { IconClose, IconExternalLink } from './icons';
@@ -107,9 +107,9 @@ export function RoomPanel() {
                 </span>
                 <h2
                   className="min-w-0 flex-1 truncate font-mono text-[14px] font-bold leading-none text-text-primary"
-                  title={displayName ? `r/${displayName}` : undefined}
+                  title={displayName ? formatRoomName(displayName) : undefined}
                 >
-                  r/{displayName}
+                  {formatRoomName(displayName)}
                 </h2>
                 <span
                   className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-400/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-emerald-400"

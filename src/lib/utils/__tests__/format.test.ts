@@ -6,7 +6,21 @@ import {
   formatNumber,
   formatBytes,
   formatIdle,
+  formatRoomName,
 } from '../format'
+
+describe('formatRoomName (sync free-view label & RoomPanel header)', () => {
+  test('prefixes with r/', () => {
+    expect(formatRoomName('lobby')).toBe('r/lobby')
+    expect(formatRoomName('meta')).toBe('r/meta')
+  })
+
+  test('same output for both modes', () => {
+    // room name from world-store — one source of truth in 3D label AND panel
+    const roomName = 'technocore-genesis'
+    expect(formatRoomName(roomName)).toBe('r/technocore-genesis')
+  })
+})
 
 describe('formatRelativeTime', () => {
   test('returns empty string for invalid date', () => {

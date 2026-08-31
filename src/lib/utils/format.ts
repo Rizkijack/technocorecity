@@ -32,6 +32,14 @@ export function truncate(text: string, n: number): string {
   return `${codePoints.slice(0, n - 1).join('')}…`
 }
 
+/**
+ * Room name as displayed in both 3D label (free view) and RoomPanel (inside
+ * building). Single source of truth — keeps the two modes in sync.
+ */
+export function formatRoomName(name: string): string {
+  return `r/${name}`
+}
+
 const COMPACT = new Intl.NumberFormat('en-US', {
   notation: 'compact',
   maximumFractionDigits: 1,

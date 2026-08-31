@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Room } from '@/lib/technocore/types'
 import { useWorldStore } from '@/stores/world-store'
-import { formatNumber, truncate } from '@/lib/utils/format'
+import { formatNumber, formatRoomName, truncate } from '@/lib/utils/format'
 import {
   createBuildingGeometry,
   floorBandGeometryFor,
@@ -47,7 +47,7 @@ export function makeLabelTexture(text: string, active: boolean): THREE.CanvasTex
   const measure = document.createElement('canvas')
   const mctx = measure.getContext('2d')!
   mctx.font = active ? '600 14px ui-monospace, "JetBrains Mono", Menlo, monospace' : LABEL_FONT
-  const fullText = `r/${text}`
+  const fullText = formatRoomName(text)
   const textW = Math.ceil(mctx.measureText(fullText).width)
   const prefixW = Math.ceil(mctx.measureText('r/').width)
   const fontSize = active ? 14 : 12
@@ -121,7 +121,7 @@ export function makeSolidLabelTexture(room: Room, hovered: boolean, isSelected: 
   const m = document.createElement('canvas')
   const mctx = m.getContext('2d')!
   mctx.font = '700 12px ui-monospace, "JetBrains Mono", Menlo, monospace'
-  const fullName = `r/${room.name}`
+  const fullName = formatRoomName(room.name)
   const nameW = Math.ceil(mctx.measureText(fullName).width)
   // prefix split for two-tone rendering
   // (measure prefix for offset, but width already in nameW)
