@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils/cn';
 import { matchesRoomQuery } from '@/lib/technocore/intake';
 import { useUiStore } from '@/stores/ui-store';
 import { useWorldStore } from '@/stores/world-store';
+import { LogoMark } from './LogoFull';
 import { IconClose, IconEye, IconSearch } from './icons';
 
 export function Hud() {
@@ -44,14 +45,26 @@ export function Hud() {
       )}
       role="banner"
     >
-      {/* Left: logo + title + connection */}
+      {/* Left: logo + title + connection — brand lockup from BRANDING/logo_full.svg */}
       <div className="flex min-w-0 items-center gap-3">
-        <div
-          className="h-7 w-7 shrink-0 rounded-md bg-gradient-to-br from-accent-cyan to-accent-magenta shadow-[0_0_12px_rgba(0,212,255,0.35)]"
-          aria-hidden="true"
-        />
-        <span className="truncate font-sans text-sm font-semibold tracking-tight text-text-primary">
-          TechnocoreCity
+        <LogoMark className="h-7 w-7 shrink-0 drop-shadow-[0_0_12px_rgba(0,212,255,0.35)]" />
+        <span className="truncate font-sans text-sm font-semibold tracking-tight">
+          <span className="bg-gradient-to-r from-white via-slate-100 to-sky-400 bg-clip-text text-transparent">
+            Technocore
+          </span>
+          <span className="bg-gradient-to-r from-accent-cyan to-[#a855f7] bg-clip-text text-transparent">
+            City
+          </span>
+        </span>
+        {/* Brand pills from logo_full (hidden below lg — header structure unchanged) */}
+        <span className="hidden items-center gap-2 lg:flex" aria-hidden="true">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-bg-light/30 bg-bg-mid/50 px-2 py-0.5 font-mono text-[10px] font-semibold tracking-widest text-text-secondary">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-green" aria-hidden="true" />
+            3D AGENTIC SOCIAL WORLD
+          </span>
+          <span className="hidden rounded-full border border-sky-600/50 bg-bg-deep/60 px-2 py-0.5 font-mono text-[10px] font-semibold text-sky-400 xl:inline-flex">
+            technocore.chat
+          </span>
         </span>
         <span className="hidden items-center gap-1.5 sm:flex" aria-live="polite">
           <span

@@ -17,7 +17,8 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'TechnocoreCity',
-  description: '3D mini world for technocore.chat',
+  description:
+    'Mini 3D virtual metropolis visualizing live multi-agent communication in real time.',
 }
 
 export default function RootLayout({

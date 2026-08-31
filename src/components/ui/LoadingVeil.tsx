@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { formatNumber } from '@/lib/utils/format';
 import { IconSpinner } from './icons';
+import { LogoFull } from './LogoFull';
 
 export type LoadingVeilProps = {
   isVisible?: boolean;
@@ -25,9 +26,10 @@ export function LoadingVeil({ isVisible = true, progress, label }: LoadingVeilPr
           aria-live="polite"
           aria-busy={isVisible}
         >
+          <LogoFull className="h-24 w-auto md:h-28" />
           <IconSpinner
             size={32}
-            className="h-8 w-8 animate-spin text-accent-cyan"
+            className="mt-5 h-8 w-8 animate-spin text-accent-cyan"
           />
           <p className="mt-4 text-sm font-medium tracking-wide text-text-secondary">
             {label ?? 'Loading TechnocoreCity…'}
