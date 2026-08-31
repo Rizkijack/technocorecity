@@ -25,7 +25,7 @@
  * because it requires a real WebGL canvas that jsdom cannot provide.
  */
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import * as BuildingModule from '../Building'
@@ -33,7 +33,7 @@ import { Building, makeLabelTexture } from '../Building'
 
 // `import.meta.url` → path to this test file. Vitest ESM supports it.
 const here = fileURLToPath(import.meta.url)
-const buildingSource = readFileSync(resolve(here, '../Building.tsx'), 'utf8')
+const buildingSource = readFileSync(resolve(dirname(here), '../Building.tsx'), 'utf8')
 
 describe('Building module — label regression guards', () => {
   it('exports makeLabelTexture (the sprite label mechanism must exist)', () => {
