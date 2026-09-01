@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { LodTier } from '@/lib/three/lod'
 
 export type ErrorVariant = 'error' | 'warning' | 'info'
 
@@ -19,6 +20,8 @@ export interface UiState {
   errorBanner: ErrorBanner | null
   mobileNoticeDismissed: boolean
   toast: Toast | null
+  /** Camera→target LOD tier (0 near / 1 mid / 2 far) — drives Building detail visibility. */
+  cameraLod: LodTier
 }
 
 export interface UiActions {
@@ -29,6 +32,8 @@ export interface UiActions {
   dismissMobileNotice: () => void
   showToast: (message: string) => void
   dismissToast: () => void
+  /** Update camera LOD tier — no-op when the tier is unchanged. */
+  setCameraLod: (t: LodTier) => void
 }
 
 export type UiStore = UiState & UiActions
@@ -41,6 +46,7 @@ export const useUiStore = create<UiStore>()((set) => ({
   errorBanner: null,
   mobileNoticeDismissed: false,
   toast: null,
+  cameraLod: 0,
 
   toggleLegend: () =>
     set((state) => ({ legendCollapsed: !state.legendCollapsed })),
@@ -65,4 +71,11 @@ export const useUiStore = create<UiStore>()((set) => ({
   },
 
   dismissToast: () => set(() => ({ toast: null })),
+
+  // LOD tier set — returning the same state object when the tier is unchanged
+  // makes zustand skip the update entirely (Object.is check): no state swap,
+  // no subscriber notification, no Building re-render while orbiting inside a
+  // tier band. CameraRig calls this on every OrbitControls 'change'.
+  setCameraLod: (t) =>
+    set((state) => (state.cameraLod === t ? state : { cameraLod: t })),
 }))

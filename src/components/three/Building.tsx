@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import type { Room } from '@/lib/technocore/types'
 import { isEmptyRoom } from '@/lib/technocore/intake'
 import { useWorldStore } from '@/stores/world-store'
+import { useUiStore } from '@/stores/ui-store'
 import { formatNumber, formatRoomName, truncate } from '@/lib/utils/format'
 import {
   createBuildingGeometry,
@@ -364,6 +365,16 @@ export function Building({ room, position, index: _index }: BuildingProps) {
   // no windows / floor bands / glow, label badge "empty".
   const ghost = useMemo(() => isEmptyRoom(room), [room])
 
+  // Camera LOD tier (ui-store ← CameraRig onChange). 0 = full detail,
+  // 1 = mid (bands + windows hidden), 2 = far (labels hidden too, except
+  // hovered/selected). Detail is hidden via the `visible` prop — geometry and
+  // shared material instances stay cached, so zooming back in is free and no
+  // GPU resources are disposed. draw-call savings: tier 1 hides up to 15
+  // meshes/building (9 bands + 6 windows), tier 2 adds the label sprite.
+  const cameraLod = useUiStore((s) => s.cameraLod)
+  const showDetails = cameraLod === 0
+  const showLabel = cameraLod < 2 || hovered || isSelected
+
   const newAt = useWorldStore((s) => s.newlyCreatedAt.get(room.name))
 
   const emissiveIntensity = useMemo(() => {
@@ -533,42 +544,51 @@ export function Building({ room, position, index: _index }: BuildingProps) {
         />
       </lineSegments>
 
-      {/* horizontal floor bands — skipped on ghost buildings */}
-      {!ghost &&
-        bandYs.map((y) => (
-          // eslint-disable-next-line react/no-unknown-property
-          <mesh
-            key={`band-${y.toFixed(1)}`}
-            position={[0, y, 0]}
-            geometry={floorBandGeometryFor(width, depth)}
-            material={floorBandMaterialInst}
-            castShadow
-            receiveShadow
-          />
-        ))}
+      {/* LOD detail group — floor bands + window planes are the largest
+          per-building draw-call cost (~15 of ~21 meshes on a tall building).
+          At camera tier ≥ 1 the whole subtree is culled by the renderer via
+          group visible (no unmount → cached geometries/materials survive the
+          zoom round-trip). Ghost buildings never had these features; the
+          `!ghost &&` guards below are pinned by Building.label.test.ts. */}
+      {/* eslint-disable-next-line react/no-unknown-property */}
+      <group visible={showDetails}>
+        {/* horizontal floor bands — skipped on ghost buildings */}
+        {!ghost &&
+          bandYs.map((y) => (
+            // eslint-disable-next-line react/no-unknown-property
+            <mesh
+              key={`band-${y.toFixed(1)}`}
+              position={[0, y, 0]}
+              geometry={floorBandGeometryFor(width, depth)}
+              material={floorBandMaterialInst}
+              castShadow
+              receiveShadow
+            />
+          ))}
 
-      {/* window planes — front (+z) and side (+x); skipped on ghost buildings */}
-      {!ghost &&
-        windowYs.map((y) => (
-          // eslint-disable-next-line react/no-unknown-property
-          <mesh
-            key={`wf-${y.toFixed(1)}`}
-            position={[0, y, depth / 2 + 0.016]}
-            geometry={sharedWindowGeometry}
-            material={windowMaterialInst}
-          />
-        ))}
-      {!ghost &&
-        windowYs.map((y) => (
-          // eslint-disable-next-line react/no-unknown-property
-          <mesh
-            key={`ws-${y.toFixed(1)}`}
-            position={[width / 2 + 0.016, y, 0]}
-            rotation={[0, Math.PI / 2, 0]}
-            geometry={sharedWindowGeometry}
-            material={windowMaterialInst}
-          />
-        ))}
+        {/* window planes — front (+z) and side (+x); skipped on ghost buildings */}
+        {!ghost &&
+          windowYs.map((y) => (
+            // eslint-disable-next-line react/no-unknown-property
+            <mesh
+              key={`wf-${y.toFixed(1)}`}
+              position={[0, y, depth / 2 + 0.016]}
+              geometry={sharedWindowGeometry}
+              material={windowMaterialInst}
+            />
+          ))}
+        {!ghost &&
+          windowYs.map((y) => (
+            // eslint-disable-next-line react/no-unknown-property
+            <mesh
+              key={`ws-${y.toFixed(1)}`}
+              position={[width / 2 + 0.016, y, 0]}
+              rotation={[0, Math.PI / 2, 0]}
+              geometry={sharedWindowGeometry}
+              material={windowMaterialInst}
+            />
+          ))}
+      </group>
 
       {/* rooftop — ghost variant is a dark unlit slab */}
       {/* eslint-disable-next-line react/no-unknown-property */}
@@ -612,7 +632,11 @@ export function Building({ room, position, index: _index }: BuildingProps) {
           ghost rooms with <5 messages get a dim "empty" badge variant — no cyan).
           Hover 1.1 cyan text, selected 1.15 brighter halo — no geometry per frame. */}
       {labelTexture && (
-        <sprite position={[0, labelY, 0]} scale={[labelScale.x, labelScale.y, 1]}>
+        <sprite
+          visible={showLabel}
+          position={[0, labelY, 0]}
+          scale={[labelScale.x, labelScale.y, 1]}
+        >
           <spriteMaterial
             attach="material"
             map={labelTexture}

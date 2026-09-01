@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
+import { lodTierForDistance } from '@/lib/three/lod'
+import type { LodTier } from '@/lib/three/lod'
+import { useUiStore } from '@/stores/ui-store'
 
 /**
  * FREE VIEW CameraRig
@@ -12,10 +15,40 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
  * - enableDamping 0.05, enablePan/Zoom/Rotate true
  * - WASD + Arrow keys untuk pan (horizontal plane, moves target + camera together)
  * - Honors prefers-reduced-motion (kept as ref/listener, no fly animation to disable — damping tetap 0.05)
+ *
+ * LOD hook-up: OrbitControls 'change' (bukan useFrame baru — change hanya
+ * dispatch saat kamera benar-benar bergerak) dihitung jarak camera→target
+ * dan tier dikirim ke ui-store HANYA saat berubah (guard ganda: ref lokal +
+ * no-op di store) supaya zoom in/out tidak memicu re-render storm.
  */
 export function CameraRig() {
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
   const prefersReduced = useRef(false)
+  const setCameraLod = useUiStore((s) => s.setCameraLod)
+  const lodTierRef = useRef<LodTier>(0)
+
+  // Camera distance → LOD tier sync. Called from OrbitControls onChange (fires
+  // only while the camera actually moves, damping included) — no extra useFrame.
+  // Uses controls.getDistance() when available (three-stdlib has it), falls
+  // back to camera.position.distanceTo(target) otherwise.
+  const syncCameraLod = useCallback(() => {
+    const ctrl = controlsRef.current
+    if (!ctrl) return
+    const cam = ctrl.object as THREE.PerspectiveCamera | undefined
+    if (!cam || !ctrl.target) return
+    const d =
+      typeof ctrl.getDistance === 'function' ? ctrl.getDistance() : cam.position.distanceTo(ctrl.target)
+    const tier = lodTierForDistance(d)
+    if (tier === lodTierRef.current) return // same tier → zero-cost no-op
+    lodTierRef.current = tier
+    setCameraLod(tier)
+  }, [setCameraLod])
+
+  // One-time initial sync (default camera [0,30,50] → d≈58.3 → tier 0);
+  // subsequent updates flow through OrbitControls onChange.
+  useEffect(() => {
+    syncCameraLod()
+  }, [syncCameraLod])
 
   // Keep prefers-reduced-motion listener for accessibility.
   // FREE VIEW has no fly-to lerp, so there is no instant-teleport branch;
@@ -101,6 +134,7 @@ export function CameraRig() {
       enablePan
       enableZoom
       enableRotate
+      onChange={syncCameraLod}
     />
   )
 }
